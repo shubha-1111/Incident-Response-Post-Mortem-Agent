@@ -27,6 +27,10 @@ RUN npm install --only=production
 # Copy built backend files
 COPY --from=builder /app/dist ./dist
 
+# Copy runtime config assets (report templates etc.) — required at runtime,
+# not compiled by tsc, so it must be copied explicitly into the image
+COPY --from=builder /app/config ./config
+
 # Copy minified frontend static assets
 COPY --from=builder /app/src/frontend/dist ./src/frontend/dist
 
