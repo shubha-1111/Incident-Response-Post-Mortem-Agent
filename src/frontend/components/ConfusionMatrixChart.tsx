@@ -12,6 +12,8 @@ export interface ConfusionMatrixData {
 
 interface ConfusionMatrixChartProps {
   predictionId?: string;
+  apiBase?: string;
+  token?: string;
 }
 
 const CELL_SIZE = 70;
@@ -19,25 +21,33 @@ const MARGIN_LEFT = 80;
 const MARGIN_TOP = 40;
 const LEGEND_HEIGHT = 30;
 
-export function ConfusionMatrixChart({ predictionId }: ConfusionMatrixChartProps) {
+export function ConfusionMatrixChart({ predictionId, apiBase, token }: ConfusionMatrixChartProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [data, setData] = useState<ConfusionMatrixData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
-  }, [predictionId]);
+  }, [predictionId, apiBase, token]);
 
   async function fetchData() {
     setLoading(true);
+    setError(null);
     try {
-      const response = await fetch('/api/analytics/confusion-matrix');
+      const base = apiBase || '';
+      const response = await fetch(`${base}/api/analytics/confusion-matrix`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       const result = await response.json();
       if (result.success) {
         setData(result.data);
+      } else {
+        setError(result.error || 'Failed to load confusion matrix');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch confusion matrix:', err);
+      setError(err.message || 'Network error');
     } finally {
       setLoading(false);
     }
@@ -153,8 +163,12 @@ export function ConfusionMatrixChart({ predictionId }: ConfusionMatrixChartProps
     return <div className="text-slate-400 p-4">Loading confusion matrix...</div>;
   }
 
+  if (error) {
+    return <div className="text-red-400 p-4 text-xs font-mono">{error}</div>;
+  }
+
   if (!data || data.labels.length === 0) {
-    return <div className="text-slate-400 p-4">No prediction data available</div>;
+    return <div className="text-slate-400 p-4">No prediction data available yet. Record predictions via /api/analytics/predictions to populate this matrix.</div>;
   }
 
   return (

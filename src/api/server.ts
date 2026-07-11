@@ -1,5 +1,8 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { requireAuth, generateToken, AuthenticatedRequest } from '../config/auth.js';
 import { incidentResponseWorkflow } from '../workflows/incident-workflow.js';
 import { createInitialIncidentState } from '../schemas/incident-state.js';
@@ -1040,6 +1043,21 @@ app.post('/api/analytics/outcomes', requireAuth, async (req: AuthenticatedReques
     return res.status(500).json({ success: false, error: `Failed to record outcome: ${err.message}` });
   }
 });
+
+// ----------------------------------------------------
+// STATIC FRONTEND SERVING (single-service deploys, e.g. Railway)
+// ----------------------------------------------------
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const frontendDist = path.join(__dirname, '../../src/frontend/dist');
+if (fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist));
+  // SPA fallback: any GET that isn't an API route or a static asset falls through to index.html
+  app.get(/^\/(?!api\/|login$|dashboard$|ingest$|approve\/|reject\/|incident\/|health$).*/, (req: Request, res: Response) => {
+    res.sendFile(path.join(frontendDist, 'index.html'));
+  });
+} else {
+  console.warn('[Static] Frontend build not found at', frontendDist, '- run `npm run build:frontend` before deploying.');
+}
 
 // ----------------------------------------------------
 // GLOBAL ERROR HANDLER MIDDLEWARE

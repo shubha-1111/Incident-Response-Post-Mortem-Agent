@@ -1,7 +1,8 @@
 import React from 'react';
 import { 
   LayoutDashboard, ShieldAlert, Cpu, Database, Globe, Shield, Clock, 
-  FileText, BarChart2, Settings, ChevronLeft, ChevronRight, LogOut, User, Bell 
+  FileText, BarChart2, Settings, ChevronLeft, ChevronRight, LogOut, User, Bell,
+  Layers, Wrench, TrendingUp
 } from 'lucide-react';
 
 export function Sidebar({ 
@@ -25,6 +26,9 @@ export function Sidebar({
     { id: 'timeline', label: 'Timeline', icon: Clock },
     { id: 'postmortems', label: 'Postmortems', icon: FileText },
     { id: 'kb', label: 'Knowledge Base', icon: Database },
+    { id: 'groups', label: 'Incident Groups', icon: Layers },
+    { id: 'analytics', label: 'Model Analytics', icon: TrendingUp },
+    { id: 'toolkit', label: 'Security Toolkit', icon: Wrench },
     { id: 'reports', label: 'Reports', icon: BarChart2 },
     { id: 'settings', label: 'Settings', icon: Settings }
   ];

@@ -22,6 +22,10 @@ import { AIInsights } from './components/AIInsights';
 import { SimilarIncidentsPanel } from './components/SimilarIncidentsPanel';
 import { OnboardingTour } from './components/OnboardingTour';
 import { DecisionSupportPanel } from './components/DecisionSupportPanel';
+import { IncidentGroupsView } from './components/IncidentGroupsView';
+import { AnalyticsPanel } from './components/AnalyticsPanel';
+import { SecurityToolkit } from './components/SecurityToolkit';
+import { ReportGenerator } from './components/ReportGenerator';
 
 
 // Dynamic host resolution for API Gateway and WebSocket stream
@@ -1237,8 +1241,27 @@ function App() {
                 riskHistory={riskHistory}
               />
             </div>
+            <div className="lg:col-span-12">
+              <ReportGenerator incident={incident} token={token} apiBase={API_BASE} />
+            </div>
           </div>
         );
+
+      case 'groups':
+        return (
+          <IncidentGroupsView
+            token={token}
+            apiBase={API_BASE}
+            selectedId={selectedId}
+            onSelectIncident={setSelectedId}
+          />
+        );
+
+      case 'analytics':
+        return <AnalyticsPanel token={token} apiBase={API_BASE} />;
+
+      case 'toolkit':
+        return <SecurityToolkit token={token} apiBase={API_BASE} />;
 
       case 'settings':
         return (

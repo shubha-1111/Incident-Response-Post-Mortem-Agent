@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ShieldAlert, Plus, MessageSquare } from 'lucide-react';
 import { GroupedIncidentList } from './GroupedIncidentList';
 import { MultiSelectFilter } from './MultiSelectFilter';
@@ -10,10 +10,17 @@ export function ActiveIncidents({
   setSelectedIncident, 
   setShowIngestModal 
 }) {
+  const [attackTypeFilter, setAttackTypeFilter] = useState([]);
+
   const handleSelect = (incidentId) => {
     setSelectedId(incidentId);
     setSelectedIncident(null);
   };
+
+  const filteredIncidents = useMemo(() => {
+    if (attackTypeFilter.length === 0) return incidents;
+    return incidents.filter((inc) => attackTypeFilter.includes(inc.attackType));
+  }, [incidents, attackTypeFilter]);
 
   return (
     <div className="glass-panel glow-hover rounded-[12px] p-5 flex flex-col h-[380px] shadow-[0_4px_20px_rgba(0,0,0,0.4)] animate-fadeInUp">
@@ -34,10 +41,18 @@ export function ActiveIncidents({
         </button>
       </div>
 
+      <div className="mb-3">
+        <MultiSelectFilter
+          selected={attackTypeFilter}
+          onChange={setAttackTypeFilter}
+          placeholder="Filter by attack type..."
+        />
+      </div>
+
       {/* Grouped incident list */}
       <div className="flex-1 overflow-y-auto pr-1 terminal-scroll select-none">
         <GroupedIncidentList 
-          incidents={incidents} 
+          incidents={filteredIncidents} 
           onSelect={handleSelect}
           selectedId={selectedId}
         />
