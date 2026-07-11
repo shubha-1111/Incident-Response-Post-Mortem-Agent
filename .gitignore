@@ -6,3 +6,6 @@ src/frontend/node_modules/
 dist/
 src/frontend/dist/
 *.log
+data/incidents.db
+data/incidents.db-shm
+data/incidents.db-wal
