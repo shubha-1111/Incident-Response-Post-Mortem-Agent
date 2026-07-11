@@ -10,6 +10,12 @@ Imported Node.js/TypeScript incident-response agent system (Mastra + Qdrant + En
 - `JWT_SECRET` auto-generates a random one if unset (fine for a single dev session, but set a fixed 32+ char value in any multi-instance/production deploy so tokens survive restarts).
 - `PORT` defaults to 3001. `NODE_ENV=development` auto-triggers a demo incident workflow run on boot.
 
+## Running on Replit
+- Single workflow `Start application` runs `npm start` (serves the built backend + static frontend from `src/frontend/dist`) on `PORT=5000`, mapped to external port 80 in `.replit`. Frontend must be rebuilt (`npm run build`) after any change under `src/frontend`, then restart the workflow.
+- Secrets configured: `QDRANT_URL`, `QDRANT_API_KEY`, `OPENAI_API_KEY` (the latter is a hard `import`-time requirement in the RCA agent even though it's not documented as required in the README).
+- Known gap: the Qdrant Cloud cluster currently returns `403 Forbidden` on every request (confirmed with a direct `curl`, independent of this app's code) — the cluster/key on the user's Qdrant Cloud account needs to be checked. Until fixed, vector search/embeddings-dependent features (similarity search, KB retrieval) silently degrade; login, dashboard, sidebar navigation, and all other UI still work.
+- Login: `admin` / `admin` (from `.env.example` defaults; not overridden here).
+
 ## What changed in this session (frontend enhancement pass)
 Wired previously-unused backend routes into the dashboard UI:
 - Fixed `ConfusionMatrixChart.tsx` (was calling a relative URL with no auth header — broken in both dev and prod).
