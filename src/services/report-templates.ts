@@ -43,7 +43,11 @@ const registerHelpers = () => {
     if (['medium', 'warn', 'warning'].includes(s)) return 'medium';
     return 'low';
   });
+
+  Handlebars.registerHelper('inc', (index: number) => index + 1);
 };
+
+registerHelpers();
 
 const loadTemplate = (name: string): Handlebars.TemplateDelegate => {
   const templatePath = path.join(TEMPLATE_DIR, `${name}.hbs`);

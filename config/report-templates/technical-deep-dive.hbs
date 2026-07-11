@@ -63,7 +63,7 @@
                 </div>
                 <div class="log-entry">
                     {{summary}}
-                    <span class="mtag mtag-{{severityClass}}">{{severity}}</span>
+                    <span class="mtag mtag-{{severityClass severity}}">{{severity}}</span>
                 </div>
                 {{#if payload}}
                 <div class="code-block">
@@ -79,7 +79,7 @@
             {{#each logSnippets}}
             <div class="log-entry">
                 <span class="log-time">{{formatDate timestamp}}</span>
-                <span class="log-level {{levelClass}}">{{level}}</span>
+                <span class="log-level {{levelClass level}}">{{level}}</span>
                 <span>{{message}}</span>
             </div>
             {{/each}}

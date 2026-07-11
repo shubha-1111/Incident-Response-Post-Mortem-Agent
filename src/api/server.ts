@@ -862,6 +862,7 @@ app.get('/api/incidents/:id/report', requireAuth, async (req: AuthenticatedReque
   const { id } = req.params;
   const { type = 'executive-summary' } = req.query;
 
+  try {
   const state: any = await getIncidentState(id);
   if (!state) {
     return res.status(404).json({ success: false, error: 'Incident not found' });
@@ -918,6 +919,9 @@ app.get('/api/incidents/:id/report', requireAuth, async (req: AuthenticatedReque
   }
 
   return res.status(400).json({ success: false, error: 'Invalid report type. Use "executive-summary" or "technical-deep-dive".' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: `Report generation failed: ${err.message}` });
+  }
 });
 
 /**
@@ -928,6 +932,7 @@ app.post('/api/incidents/:id/report/pdf', requireAuth, async (req: Authenticated
   const { id } = req.params;
   const { type = 'executive-summary' } = req.body;
 
+  try {
   const state: any = await getIncidentState(id);
   if (!state) {
     return res.status(404).json({ success: false, error: 'Incident not found' });
@@ -938,7 +943,7 @@ app.post('/api/incidents/:id/report/pdf', requireAuth, async (req: Authenticated
     return res.status(500).json({ success: false, error: result.error });
   }
 
-  const pdfBuffer = getPDF(`report-${id}-${type}`);
+  const pdfBuffer = getPDF(`${type}-${id}`);
   if (!pdfBuffer) {
     return res.status(500).json({ success: false, error: 'PDF not found' });
   }
@@ -946,6 +951,9 @@ app.post('/api/incidents/:id/report/pdf', requireAuth, async (req: Authenticated
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${id}-${type}-report.pdf"`);
   return res.status(200).send(pdfBuffer);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: `PDF generation failed: ${err.message}` });
+  }
 });
 
 // ----------------------------------------------------
