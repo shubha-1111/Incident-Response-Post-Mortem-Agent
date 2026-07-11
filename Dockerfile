@@ -3,8 +3,8 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package configurations and build definitions
-COPY package*.json tsconfig.json ./
+# Copy package configurations, npm config, and build definitions
+COPY package*.json .npmrc tsconfig.json ./
 RUN npm install
 
 # Copy the entire workspace files
@@ -20,8 +20,8 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copy package files and install production-only dependencies
-COPY package*.json ./
+# Copy package files and npm config, then install production-only dependencies
+COPY package*.json .npmrc ./
 RUN npm install --only=production
 
 # Copy built backend files
