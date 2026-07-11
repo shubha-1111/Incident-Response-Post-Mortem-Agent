@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* SOC Operator Command Deck Design Tokens */
+:root {
+  /* Colors */
+  --bg-base: #0A0E14;
+  --bg-surface: #0F1420;
+  --border-default: #1C2333;
+  --border-strong: #2A3348;
+  --text-primary: #F5F7FA;
+  --text-secondary: #8B94A8;
+  --text-muted: #5B6478;
+  
+  /* Accents & Gradients */
+  --accent-cyan: #67E8F9;
+  --accent-violet: #A78BFA;
+  
+  /* Severity System Matrix */
+  --severity-critical: #FB3A5D;
+  --severity-high: #F59E0B;
+  --severity-medium: #38BDF8;
+  --severity-low: #2DD4BF;
+  --status-success: #34D399;
+
+  /* Typography Fallbacks */
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Technical Telemetry Overrides */
+.tech-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Signature Active Card Clip Path */
+.active-agent-clip {
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+  position: relative;
+  border: 1px solid transparent;
+  background: linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
+              linear-gradient(135deg, var(--accent-cyan), var(--accent-violet)) border-box;
+}
+
+/* Technical Opacity Pulse Indicator */
+@keyframes telemetry-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.animate-telemetry-pulse {
+  animation: telemetry-pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Custom Scrollbar */
+.terminal-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.terminal-scroll::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+  border-radius: 3px;
+}
+.terminal-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+.terminal-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Modern Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Input Focus Ring */
+.input-modern {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  transition: all 0.2s ease;
+}
+
+.input-modern:focus {
+  border-color: var(--accent-cyan);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(103, 232, 249, 0.1);
+}

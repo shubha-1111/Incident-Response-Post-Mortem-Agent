@@ -1,0 +1,56 @@
+rules:
+  - name: "Critical Production Database"
+    id: "rule-001"
+    priority: "CRITICAL"
+    condition:
+      and:
+        - field: "assetCriticality"
+          operator: "=="
+          value: "high_impact"
+        - field: "threatScore"
+          operator: ">"
+          value: 80
+    action: "HITL_REQUIRED"
+    justification: "High-impact asset with elevated threat score requires human approval"
+    escalation: true
+
+  - name: "Zero-Day Vulnerability"
+    id: "rule-002"
+    priority: "CRITICAL"
+    condition:
+      and:
+        - field: "attackType"
+          operator: "=="
+          value: "zero_day"
+        - field: "exploitAvailable"
+          operator: "=="
+          value: true
+    action: "HITL_REQUIRED"
+    justification: "Zero-day exploit detected - immediate human review required"
+    escalation: true
+
+  - name: "Ransomware Detection"
+    id: "rule-003"
+    priority: "CRITICAL"
+    condition:
+      field: "attackType"
+      operator: "=="
+      value: "ransomware"
+    action: "HITL_REQUIRED"
+    justification: "Ransomware detected - containment requires human approval"
+    escalation: true
+
+  - name: "Low Risk Standard Incident"
+    id: "rule-004"
+    priority: "LOW"
+    condition:
+      and:
+        - field: "threatScore"
+          operator: "<"
+          value: 40
+        - field: "assetCriticality"
+          operator: "=="
+          value: "low_impact"
+    action: "AUTO_EXECUTE"
+    justification: "Low risk incident on non-critical asset - safe to auto-execute"
+    escalation: false

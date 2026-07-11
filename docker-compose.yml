@@ -1,0 +1,153 @@
+# Production infrastructure for the Real-Time Threat Intelligence System.
+# Start with: docker compose up -d
+# Stop with:  docker compose down
+#
+# All services are OPTIONAL. The app runs on SQLite in development.
+# Enable Postgres / Redis / Kafka by setting USE_POSTGRES / USE_REDIS /
+# USE_KAFKA=true in your .env and pointing DATABASE_URL / KAFKA_BROKERS at
+# the endpoints exposed below.
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 15 + TimescaleDB (time-series hypertables)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: timescale/timescaledb:2.14.2-pg15
+    container_name: ir-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: incident_response
+      POSTGRES_USER: ir_user
+      POSTGRES_PASSWORD: ir_password
+      # Apply timescaledb-tune auto-tuning on boot
+      TIMESCALEDB_TUNE_TELEMETRY: off
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ./sql/schema-postgres.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ir_user -d incident_response"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Apache Kafka + Zookeeper (event streaming)
+  # ---------------------------------------------------------------------------
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: ir-zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: ir-kafka
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_started
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Redis Cluster (3 masters + 3 replicas) for IOC / hot-path caching
+  # ---------------------------------------------------------------------------
+  redis-init:
+    image: redis:7.2
+    container_name: ir-redis-init
+    depends_on:
+      - redis-1
+      - redis-2
+      - redis-3
+      - redis-4
+      - redis-5
+      - redis-6
+    entrypoint: >
+      sh -c "sleep 5 &&
+      redis-cli --cluster create
+      redis-1:6379 redis-2:6379 redis-3:6379
+      redis-4:6379 redis-5:6379 redis-6:6379
+      --cluster-replicas 1 --cluster-yes"
+    restart: "no"
+
+  redis-1:
+    image: redis:7.2
+    container_name: ir-redis-1
+    restart: unless-stopped
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "7001:6379"
+    volumes:
+      - ./redis-cluster.conf:/usr/local/etc/redis/redis.conf:ro
+
+  redis-2:
+    image: redis:7.2
+    container_name: ir-redis-2
+    restart: unless-stopped
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "7002:6379"
+    volumes:
+      - ./redis-cluster.conf:/usr/local/etc/redis/redis.conf:ro
+
+  redis-3:
+    image: redis:7.2
+    container_name: ir-redis-3
+    restart: unless-stopped
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "7003:6379"
+    volumes:
+      - ./redis-cluster.conf:/usr/local/etc/redis/redis.conf:ro
+
+  redis-4:
+    image: redis:7.2
+    container_name: ir-redis-4
+    restart: unless-stopped
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "7004:6379"
+    volumes:
+      - ./redis-cluster.conf:/usr/local/etc/redis/redis.conf:ro
+
+  redis-5:
+    image: redis:7.2
+    container_name: ir-redis-5
+    restart: unless-stopped
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "7005:6379"
+    volumes:
+      - ./redis-cluster.conf:/usr/local/etc/redis/redis.conf:ro
+
+  redis-6:
+    image: redis:7.2
+    container_name: ir-redis-6
+    restart: unless-stopped
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "7006:6379"
+    volumes:
+      - ./redis-cluster.conf:/usr/local/etc/redis/redis.conf:ro
+
+volumes:
+  pg-data:

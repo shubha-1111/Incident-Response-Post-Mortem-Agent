@@ -1,0 +1,27 @@
+{
+  "feed_name": "MISP Sample Threat Indicators",
+  "updated_at": "2026-07-01T00:00:00Z",
+  "indicators": [
+    {
+      "ip": "192.168.1.105",
+      "type": "ip-dst",
+      "confidence": 85,
+      "tags": ["credential-stuffing", "brute-force"],
+      "mitre_technique": "T1110.004"
+    },
+    {
+      "ip": "203.0.113.42",
+      "type": "ip-dst",
+      "confidence": 72,
+      "tags": ["port-scan", "reconnaissance"],
+      "mitre_technique": "T1046"
+    },
+    {
+      "ip": "198.51.100.77",
+      "type": "ip-dst",
+      "confidence": 91,
+      "tags": ["sql-injection", "exploit"],
+      "mitre_technique": "T1190"
+    }
+  ]
+}

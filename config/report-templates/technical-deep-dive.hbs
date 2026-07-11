@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Technical Deep Dive - {{incidentId}}</title>
+    <style>
+        body { font-family: 'Fira Code', 'Courier New', monospace; line-height: 1.5; color: #e2e8f0; margin: 0; padding: 30px; background: #0f172a; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { border-bottom: 1px solid #334155; padding-bottom: 20px; margin-bottom: 30px; }
+        .h1 { color: #e2e8f0; font-size: 24px; margin: 0; font-weight: 600; }
+        .meta { color: #94a3b8; font-size: 13px; margin-top: 8px; }
+        .section { margin-bottom: 30px; }
+        .section-title { font-size: 16px; font-weight: 600; color: #cbd5e1; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; }
+        .code-block { background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 15px; overflow-x: auto; margin: 10px 0; }
+        .code-block pre { margin: 0; color: #e2e8f0; font-size: 12px; }
+        .log-entry { font-size: 11px; margin: 4px 0; }
+        .log-time { color: #64748b; }
+        .log-level { margin: 0 8px; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 500; }
+        .log-level.critical, .log-level.error { background: #7f1d1d; color: #fecaca; }
+        .log-level.warn { background: #713f12; color: #fde68a; }
+        .log-level.info { background: #166534; color: #86efac; }
+        .evidence-item { border-left: 3px solid #334155; padding-left: 12px; margin: 12px 0; }
+        .evidence-host { font-size: 12px; color: #94a3b8; }
+        .evidence-confidence { font-size: 10px; color: #94a3b8; }
+        .table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .table th, .table td { border: 1px solid #334155; padding: 10px; text-align: left; }
+        .table th { background: #1e293b; color: #cbd5e1; font-weight: 600; }
+        .table tr:nth-child(even) { background: #111827; }
+        .mtag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; margin: 2px; }
+        .mtag-high { background: #7f1d1d; color: #fecaca; }
+        .mtag-medium { background: #713f12; color: #fde68a; }
+        .mtag-low { background: #166534; color: #86efac; }
+        .root-cause { background: #1e293b; border-left: 4px solid #ef4444; padding: 15px; margin: 15px 0; }
+        .remediation { background: #111827; border-left: 4px solid #22c55e; padding: 15px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="h1">Technical Deep Dive</h1>
+            <div class="meta">
+                Incident ID: <strong>{{incidentId}}</strong> | 
+                Threat Score: <strong>{{formatScore threatScore}}/100</strong> | 
+                Autonomy Tier: <strong>{{autonomyTier}}</strong>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Root Cause Analysis</div>
+            <div class="root-cause">
+                <strong>{{rootCause}}</strong>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Evidence Chain</div>
+            {{#each evidenceChain}}
+            <div class="evidence-item">
+                <div class="evidence-host">
+                    <span class="log-time">{{formatDate observedAt}}</span>
+                    <span class="evidence-confidence">Confidence: {{confidence}}</span>
+                </div>
+                <div class="log-entry">
+                    {{summary}}
+                    <span class="mtag mtag-{{severityClass}}">{{severity}}</span>
+                </div>
+                {{#if payload}}
+                <div class="code-block">
+                    <pre>{{payload}}</pre>
+                </div>
+                {{/if}}
+            </div>
+            {{/each}}
+        </div>
+
+        <div class="section">
+            <div class="section-title">Raw Log Snippets</div>
+            {{#each logSnippets}}
+            <div class="log-entry">
+                <span class="log-time">{{formatDate timestamp}}</span>
+                <span class="log-level {{levelClass}}">{{level}}</span>
+                <span>{{message}}</span>
+            </div>
+            {{/each}}
+        </div>
+
+        <div class="section">
+            <div class="section-title">Threat Intelligence</div>
+            {{#if threatIntel}}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Indicator</th>
+                        <th>Type</th>
+                        <th>Source</th>
+                        <th>Confidence</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each threatIntel.indicators}}
+                    <tr>
+                        <td><code>{{value}}</code></td>
+                        <td>{{type}}</td>
+                        <td>{{source}}</td>
+                        <td>{{confidence}}</td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+            {{else}}
+            <p>No threat intelligence indicators identified.</p>
+            {{/if}}
+        </div>
+
+        <div class="section">
+            <div class="section-title">MITRE ATT&CK Mapping</div>
+            {{#if mitreTags}}
+            <div>
+                {{#each mitreTags}}
+                <span class="mtag mtag-medium">{{this}}</span>
+                {{/each}}
+            </div>
+            {{else}}
+            <p>No MITRE ATT&CK techniques mapped.</p>
+            {{/if}}
+        </div>
+
+        <div class="section">
+            <div class="section-title">Remediation Actions</div>
+            {{#each remediationActions}}
+            <div class="remediation">
+                <strong>{{actionType}}</strong>: {{description}}
+                {{#if justification}}<br><small>Justification: {{justification}}</small>{{/if}}
+            </div>
+            {{/each}}
+        </div>
+
+        <div class="section">
+            <div class="section-title">Lessons Learned</div>
+            {{#each lessonsLearned}}
+            <div class="evidence-item">
+                • {{this}}
+            </div>
+            {{/each}}
+        </div>
+    </div>
+</body>
+</html>

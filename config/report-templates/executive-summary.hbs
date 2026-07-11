@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Summary - {{incidentId}}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1a1a1a; margin: 0; padding: 40px; }
+        .header { text-align: center; border-bottom: 2px solid #e5e7eb; padding-bottom: 20px; margin-bottom: 30px; }
+        .h1 { color: #1f2937; font-size: 28px; margin: 0; }
+        .meta { color: #6b7280; font-size: 14px; margin: 8px 0 0 0; }
+        .severity-badge { display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-left: 10px; }
+        .high { background: #fee2e2; color: #dc2626; }
+        .medium { background: #fef3c7; color: #d97706; }
+        .low { background: #d1fae5; color: #065f46; }
+        .section { margin-bottom: 25px; }
+        .section-title { font-size: 18px; font-weight: 600; color: #1f2937; margin-bottom: 12px; border-left: 3px solid #6366f1; padding-left: 12px; }
+        .summary-box { background: #f9fafb; border-left: 4px solid #6366f1; padding: 16px; margin: 10px 0; }
+        .timeline { margin: 10px 0; }
+        .timeline-item { display: flex; align-items: center; margin-bottom: 8px; }
+        .timeline-time { font-size: 12px; color: #6b7280; min-width: 100px; }
+        .timeline-event { flex: 1; }
+        .timeline-status { font-size: 10px; padding: 2px 8px; border-radius: 4px; margin-left: 10px; }
+        .status-resolved { background: #d1fae5; color: #065f46; }
+        .status-detected { background: #fef3c7; color: #d97706; }
+        .action-item { background: #f0fdf4; border-left: 3px solid #22c55e; padding: 12px; margin: 8px 0; }
+        .action-number { font-weight: 600; color: #16a34a; margin-right: 10px; }
+        .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 class="h1">Executive Summary</h1>
+        <div class="meta">
+            Incident ID: <strong>{{incidentId}}</strong>
+            | Threat Score: <strong>{{formatScore threatScore}}/100</strong>
+            | Status: <strong>{{status}}</strong>
+            <span class="severity-badge {{severityClass}}">{{severity}}</span>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Executive Summary</div>
+        <div class="summary-box">
+            <strong>{{executiveSummary}}</strong>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Key Findings</div>
+        {{#each findings}}
+        <div class="summary-box">
+            <strong>{{this}}</strong>
+        </div>
+        {{/each}}
+    </div>
+
+    <div class="section">
+        <div class="section-title">Timeline</div>
+        {{#each timeline}}
+        <div class="timeline-item">
+            <span class="timeline-time">{{formatDate timestamp}}</span>
+            <span class="timeline-event">{{event}}</span>
+            {{#if status}}<span class="timeline-status status-{{status}}">{{status}}</span>{{/if}}
+        </div>
+        {{/each}}
+    </div>
+
+    <div class="section">
+        <div class="section-title">Recommended Actions</div>
+        {{#each recommendations}}
+        <div class="action-item">
+            <span class="action-number">{{@index+1}}.</span>
+            {{this}}
+        </div>
+        {{/each}}
+    </div>
+
+    <div class="footer">
+        Generated on {{formatDate timestamp}} | Incident Response Agent
+    </div>
+</body>
+</html>
