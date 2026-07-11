@@ -1,26 +1,30 @@
 import React from 'react';
-import { getStatusEmoji, getTimeAgo, getUrgency } from '../utils/dashboard';
+import { Shield } from 'lucide-react';
+import { getTimeAgo, getUrgency } from '../utils/dashboard';
 
-export function SimpleIncidentCard({ incident, onSelect }) {
-  const emoji = getStatusEmoji(incident.status);
+export function SimpleIncidentCard({ incident, onSelect, isSelected }) {
   const timeAgo = getTimeAgo(incident.createdAt);
   const urgency = getUrgency(incident.threatScore);
 
   const urgencyStyles = {
     CRITICAL: { color: 'var(--severity-critical)', bg: 'rgba(251, 58, 93, 0.12)', border: 'var(--severity-critical)' },
     HIGH: { color: 'var(--severity-high)', bg: 'rgba(245, 158, 11, 0.12)', border: 'var(--severity-high)' },
-    MEDIUM: { color: 'var(--severity-medium)', bg: 'rgba(56, 189, 248, 0.12)', border: 'var(--severity-medium)' },
-    LOW: { color: 'var(--severity-low)', bg: 'rgba(45, 212, 191, 0.12)', border: 'var(--severity-low)' }
+    MEDIUM: { color: '#60A5FA', bg: 'rgba(96, 165, 250, 0.12)', border: 'rgba(96, 165, 250, 0.4)' },
+    LOW: { color: '#93C5FD', bg: 'rgba(147, 197, 253, 0.12)', border: 'rgba(147, 197, 253, 0.4)' }
   };
 
   return (
     <div 
-      className="incident-card bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-[10px] p-4 hover:border-[var(--border-strong)] cursor-pointer transition-all"
+      className={`incident-card rounded-[10px] p-4 cursor-pointer transition-all border ${
+        isSelected 
+          ? 'border-[#3B82F6] bg-gradient-to-r from-blue-950/25 to-blue-900/10 shadow-[0_0_12px_rgba(59,130,246,0.25)]' 
+          : 'bg-[var(--bg-surface)] border-[var(--border-default)] hover:border-slate-700'
+      }`}
       onClick={() => onSelect(incident.incidentId)}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center min-w-0">
-          <span className="text-2xl mr-2 shrink-0">{emoji}</span>
+          <Shield className="w-4 h-4 mr-2.5 text-blue-500 shrink-0" />
           <div className="min-w-0">
             <div className="text-[var(--text-primary)] font-semibold text-sm tech-mono truncate">{incident.incidentId}</div>
             <div className="text-[var(--text-secondary)] text-xs truncate">{incident.targetHost || 'unknown'}</div>

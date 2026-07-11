@@ -1,23 +1,25 @@
-# SRE Post-Mortem: Uncontained Anomaly Incident
+# SRE Post-Mortem: Unresolved Security Incident Due to Low Confidence Score and Manual Override
 **Incident ID:** INC-2026-DEMO-001
 **Resolution Time:** Not applicable
 **Autonomy Tier:** L4_AUTO_EXECUTE
 ## 1. Executive Summary
-An unidentified anomaly was detected, but due to insufficient data and a low confidence score, the system routed the path to novel and required manual override.
+A security incident was triggered due to a low confidence score in automated response, resulting in manual override and approval by operator admin.
 ## 2. Chronology & Incident Timeline
-* Log ingestion occurred but details are not available
-* Anomaly detection alert was triggered
-* Incident was routed to manual review due to low confidence score
-* Manual override was approved by operator admin
+* Log ingestion: Not available
+* Anomaly detection: Not available
+* RCA: Not available
+* Remediation routing: Manual override due to low confidence score
+* Closure: Not applicable
 ## 3. Technical Root Cause Analysis (RCA)
-- **Primary Attack Vector:** Unknown
-- **Vulnerability Details:** Not available
+- **Primary Attack Vector:** Novel path
+- **Vulnerability Details:** Low confidence score in automated response
 ## 4. Remediation & Action Items
-- **Containment Action:** None applied
-- **Justification:** Low confidence score and lack of clear root cause made automated remediation inappropriate
+- **Containment Action:** Manual intervention
+- **Justification:** Lack of data to support automated response
 - **Action Items & Preventative Measures:**
-  1. Review and enhance log ingestion and anomaly detection capabilities.
-  2. Improve confidence scoring and automated decision-making processes.
+  1. Review and update automated response confidence score thresholds.
+  2. Develop novel path handling procedures.
+  3. Provide additional training to operator admins on manual override procedures.
 ## 5. Metadata & Learning Loop
-- **SOP Reference:** SOP-INC-001: Unidentified Incident Handling
-- **MITRE ATT&CK Tags:** Unknown
+- **SOP Reference:** SOP-SEC-001: Security Incident Response
+- **MITRE ATT&CK Tags:** ["Low Confidence Score", "Manual Override", "Novel Path"]

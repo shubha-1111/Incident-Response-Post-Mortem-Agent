@@ -50,6 +50,16 @@ const DEMO_LOGS_PRESET = {
     "web-01,nginx,HIGH,SQL injection attempt UNION SELECT FROM users",
     "web-01,app,CRITICAL,DROP TABLE attempt detected in parameter id",
     "web-01,waf,HIGH,XSS payload detected in request body"
+  ],
+  ddos: [
+    "web-prod-01,nginx,CRITICAL,Rate limit exceeded: 429 Too Many Requests from 203.0.113.88",
+    "web-prod-01,nginx,HIGH,Upstream server temporarily unavailable",
+    "web-prod-01,syslog,CRITICAL,SYN flood threshold exceeded 10kpps"
+  ],
+  ransom: [
+    "fileserv-01,sshd,CRITICAL,Multiple failed SSH logins from root",
+    "fileserv-01,kernel,CRITICAL,Cryptographic activity detected on /shared/docs",
+    "fileserv-01,auditd,CRITICAL,Mass file modification event on sensitive volumes"
   ]
 };
 
@@ -70,7 +80,7 @@ function MarkdownRenderer({ content }) {
         if (cleanLine.startsWith('# ')) {
           return (
             <h1 key={idx} className="text-lg font-black text-white border-b border-slate-800 pb-2 mt-4 font-mono flex items-center">
-              <FileText className="w-4 h-4 mr-2 text-indigo-400" />
+              <FileText className="w-4 h-4 mr-2 text-blue-300" />
               {cleanLine.substring(2)}
             </h1>
           );
@@ -79,7 +89,7 @@ function MarkdownRenderer({ content }) {
         // H2 Headers
         if (cleanLine.startsWith('## ')) {
           return (
-            <h2 key={idx} className="text-xs font-bold text-white mt-4 font-mono border-l-2 border-indigo-500 pl-2 uppercase tracking-wide">
+            <h2 key={idx} className="text-xs font-bold text-white mt-4 font-mono border-l-2 border-blue-400 pl-2 uppercase tracking-wide">
               {cleanLine.substring(3)}
             </h2>
           );
@@ -107,7 +117,7 @@ function MarkdownRenderer({ content }) {
         if (cleanLine.startsWith('- ')) {
           return (
             <div key={idx} className="flex items-start space-x-2 pl-3">
-              <span className="text-indigo-400 select-none mt-1">•</span>
+              <span className="text-blue-300 select-none mt-1">•</span>
               <span>{cleanLine.substring(2)}</span>
             </div>
           );
@@ -120,7 +130,7 @@ function MarkdownRenderer({ content }) {
           const remainder = cleanLine.replace(/^\d+\.\s*/, '');
           return (
             <div key={idx} className="flex items-start space-x-2 pl-3 font-mono">
-              <span className="text-indigo-400 select-none font-bold">{prefix}</span>
+              <span className="text-blue-300 select-none font-bold">{prefix}</span>
               <span>{remainder}</span>
             </div>
           );
@@ -136,6 +146,60 @@ function MarkdownRenderer({ content }) {
     </div>
   );
 }
+
+const ThreatScoreGauge = ({ score }) => {
+  const normalizedScore = typeof score === 'number' ? score : 30;
+  const r = 50;
+  const c = Math.PI * r; // 157.08
+  const offset = c - (normalizedScore / 100) * c;
+  
+  const getRiskLabel = (s) => {
+    if (s >= 80) return { text: 'HIGH RISK', color: 'text-rose-500' };
+    if (s >= 40) return { text: 'MEDIUM RISK', color: 'text-amber-500' };
+    return { text: 'LOW RISK', color: 'text-[#93C5FD]' };
+  };
+  
+  const risk = getRiskLabel(normalizedScore);
+
+  return (
+    <div className="glass-panel p-5 rounded-[12px] flex flex-col items-center justify-center space-y-3 shadow-[0_4px_20px_rgba(0,0,0,0.4)] animate-fadeInUp">
+      <h3 className="w-full text-xs font-bold text-white uppercase tracking-wider font-sans text-left border-b border-[var(--border-default)] pb-2 select-none">
+        Threat Score
+      </h3>
+      <div className="relative flex items-center justify-center w-full h-24 mt-2">
+        <svg className="w-36 h-20 transform translate-y-1" viewBox="0 0 120 70">
+          <path
+            d="M 10 60 A 50 50 0 0 1 110 60"
+            fill="none"
+            stroke="rgba(255, 255, 255, 0.05)"
+            strokeWidth="8"
+            strokeLinecap="round"
+          />
+          <path
+            d="M 10 60 A 50 50 0 0 1 110 60"
+            fill="none"
+            stroke="url(#gaugeGradient)"
+            strokeWidth="8"
+            strokeLinecap="round"
+            strokeDasharray={c}
+            strokeDashoffset={offset}
+            className="transition-all duration-1000 ease-out"
+          />
+          <defs>
+            <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#3b82f6" />
+              <stop offset="100%" stopColor="#93c5fd" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-end pb-1 select-none">
+          <span className="text-2xl font-black text-white font-mono">{normalizedScore}<span className="text-xs text-slate-400 font-normal">/100</span></span>
+          <span className={`text-[10px] font-bold tracking-widest font-mono mt-0.5 ${risk.color}`}>{risk.text}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 function App() {
   const [token, setToken] = useState(sessionStorage.getItem('token') || '');
@@ -167,14 +231,14 @@ function App() {
   
   // Custom log ingestion modal state
   const [showIngestModal, setShowIngestModal] = useState(false);
-  const [customIncidentId, setCustomIncidentId] = useState('');
-  const [customLogs, setCustomLogs] = useState('');
+  const [customIncidentId, setCustomIncidentId] = useState('INC-2026-STUFF-002');
+  const [customLogs, setCustomLogs] = useState('db-prod-02,mysqld,HIGH,Failed login from 192.168.1.105\ndb-prod-02,mysqld,CRITICAL,Unauthorized access detected');
   const [isIngesting, setIsIngesting] = useState(false);
 
   const terminalEndRef = useRef(null);
 
   // Extract details defensively
-  const incident = selectedIncident;
+  const incident = selectedIncident || incidents.find(i => i.incidentId === selectedId);
   const evidenceChain = Array.isArray(incident?.evidenceChain) ? incident.evidenceChain : [];
   const status = incident?.status || 'received';
   const targetHost = incident?.targetHost || 'db-prod-02';
@@ -241,16 +305,9 @@ function App() {
     setActiveNav(navId);
     if (navId === 'postmortems') {
       setMiddleTab('postmortem');
-      return;
     }
-    if (navId === 'dashboard' || navId === 'settings') {
-      const sc = document.getElementById('app-scroll');
-      if (sc) sc.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-    const targetId = SECTION_MAP[navId];
-    const el = targetId ? document.getElementById(targetId) : null;
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const sc = document.getElementById('app-scroll');
+    if (sc) sc.scrollTo({ top: 0, behavior: 'auto' });
   };
 
   // Keep the sidebar highlight in sync when the post-mortem tab is opened internally
@@ -296,8 +353,12 @@ function App() {
       }
       const body = await res.json();
       if (body.success) {
-        setIncidents(body.data || []);
+        const loaded = body.data || [];
+        setIncidents(loaded);
         setIsConnected(true);
+        if (loaded.length > 0 && (!selectedId || selectedId === 'INC-2026-STUFF-002')) {
+          setSelectedId(loaded[0].incidentId);
+        }
       }
     } catch (err) {
       console.error('Connection failure:', err);
@@ -566,246 +627,6 @@ function App() {
     return () => clearInterval(interval);
   }, [selectedId, token, incident?.status]);
 
-  // Render/update Chart.js gauges and lines dynamically (create-once, update-thereafter).
-  // Incident charts and dashboard charts use SEPARATE refs so switching incidents
-  // doesn't destroy the dashboard donut charts.
-  const incidentChartRef = useRef({ charts: {}, lastIncidentId: null });
-  const dashChartRef = useRef({ charts: {} });
-
-  useEffect(() => {
-    if (!incident) return;
-
-    const currentIncidentId = incident.incidentId;
-    if (incidentChartRef.current.lastIncidentId !== currentIncidentId) {
-      Object.values(incidentChartRef.current.charts).forEach((c) => c && c.destroy());
-      incidentChartRef.current.charts = {};
-      incidentChartRef.current.lastIncidentId = currentIncidentId;
-    }
-
-    const ensure = (canvasId, create, update) => {
-      const el = document.getElementById(canvasId);
-      if (!el) return;
-      const existing = incidentChartRef.current.charts[canvasId];
-      if (existing) {
-        update(existing);
-        existing.update('none');
-      } else {
-        incidentChartRef.current.charts[canvasId] = create(el);
-      }
-    };
-
-    // 2. Risk Score Over Time Line Chart (from SQLite risk_history)
-    ensure('severityTrendChart',
-      (ctx) => {
-        const historyPoints = riskHistory.length > 0
-          ? riskHistory
-          : [{ timestamp: incident.createdAt, riskScore: incident.threatScore ?? 0 }];
-        const labels = historyPoints.map((p) =>
-          new Date(p.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-        );
-        const scores = historyPoints.map((p) => p.riskScore ?? 0);
-        return new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels,
-            datasets: [{
-              label: 'Risk Score',
-              data: scores,
-              borderColor: '#ef4444',
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              tension: 0.3,
-              fill: true,
-              borderWidth: 1.5,
-              pointRadius: 3,
-              pointBackgroundColor: '#ef4444'
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-              x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', font: { size: 8 }, maxTicksLimit: 6 } },
-              y: { min: 0, max: 100, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', font: { size: 8 } } }
-            }
-          }
-        });
-      },
-      (chart) => {
-        const historyPoints = riskHistory.length > 0
-          ? riskHistory
-          : [{ timestamp: incident.createdAt, riskScore: incident.threatScore ?? 0 }];
-        chart.data.labels = historyPoints.map((p) =>
-          new Date(p.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-        );
-        chart.data.datasets[0].data = historyPoints.map((p) => p.riskScore ?? 0);
-      }
-    );
-
-    // 3. Confidence Curve over workflow steps (from metric_snapshots via /charts)
-    ensure('confidenceCurveChart',
-      (ctx) => {
-        const curve = (chartData?.confidenceCurve && chartData.confidenceCurve.length > 0)
-          ? chartData.confidenceCurve
-          : (incident ? [{ step: 'Current', value: Math.round((incident.confidenceScore ?? 0) * 100) }] : []);
-        return new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: curve.map((c) => c.step),
-            datasets: [{
-              label: 'Confidence %',
-              data: curve.map((c) => c.value),
-              borderColor: '#818cf8',
-              backgroundColor: 'rgba(129, 140, 248, 0.12)',
-              tension: 0.35,
-              fill: true,
-              borderWidth: 1.5,
-              pointRadius: 3,
-              pointBackgroundColor: '#818cf8'
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-              x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', font: { size: 8 }, maxTicksLimit: 6 } },
-              y: { min: 0, max: 100, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', font: { size: 8 } } }
-            }
-          }
-        });
-      },
-      (chart) => {
-        const curve = (chartData?.confidenceCurve && chartData.confidenceCurve.length > 0)
-          ? chartData.confidenceCurve
-          : (incident ? [{ step: 'Current', value: Math.round((incident.confidenceScore ?? 0) * 100) }] : []);
-        chart.data.labels = curve.map((c) => c.step);
-        chart.data.datasets[0].data = curve.map((c) => c.value);
-      }
-    );
-
-    // 4. Threat Score Breakdown
-    ensure('threatBreakdownChart',
-      (ctx) => {
-        const bd = chartData?.threatBreakdown?.breakdown ?? {};
-        const keys = Object.keys(bd);
-        if (keys.length === 0) return null;
-        return new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: keys.map((k) => k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase())),
-            datasets: [{
-              data: keys.map((k) => bd[k] ?? 0),
-              backgroundColor: ['rgba(239, 68, 68, 0.8)', 'rgba(245, 158, 11, 0.8)', 'rgba(99, 102, 241, 0.8)', 'rgba(34, 197, 94, 0.8)', 'rgba(168, 85, 247, 0.8)', 'rgba(14, 165, 233, 0.8)'],
-              borderWidth: 1,
-              borderColor: '#0f172a',
-              barThickness: 10
-            }]
-          },
-          options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-              x: { min: 0, max: 100, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', font: { size: 8 } } },
-              y: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 8 } } }
-            }
-          }
-        });
-      },
-      (chart) => {
-        const bd = chartData?.threatBreakdown?.breakdown ?? {};
-        const keys = Object.keys(bd);
-        chart.data.labels = keys.map((k) => k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()));
-        chart.data.datasets[0].data = keys.map((k) => bd[k] ?? 0);
-      }
-    );
-  }, [incident?.incidentId, status, riskHistory, threatIntelStats, evidenceChain, chartData]);
-
-  // Render platform-wide dashboard charts
-  useEffect(() => {
-    if (!dashboardCharts) return;
-
-    const ensurePd = (canvasId, create, update) => {
-      const el = document.getElementById(canvasId);
-      if (!el) return;
-      const existing = dashChartRef.current.charts[canvasId];
-      if (existing) {
-        update(existing);
-        existing.update('none');
-      } else {
-        dashChartRef.current.charts[canvasId] = create(el);
-      }
-    };
-
-    ensurePd('statusDonutChart',
-      (ctx) => {
-        const byStatus = dashboardCharts.incidentsByStatus || {};
-        const labels = Object.keys(byStatus);
-        const data = labels.map((k) => byStatus[k]);
-        const palette = ['#ef4444', '#f59e0b', '#22c55e', '#6366f1', '#14b8a', '#a855f7'];
-        return new Chart(ctx, {
-          type: 'doughnut',
-          data: {
-            labels,
-            datasets: [{ data, backgroundColor: palette.slice(0, labels.length), borderWidth: 1, borderColor: '#0f172a' }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            cutout: '65%'
-          }
-        });
-      },
-      (chart) => {
-        const byStatus = dashboardCharts.incidentsByStatus || {};
-        chart.data.labels = Object.keys(byStatus);
-        chart.data.datasets[0].data = Object.keys(byStatus).map((k) => byStatus[k]);
-      }
-    );
-
-    ensurePd('autonomySplitChart',
-      (ctx) => {
-        const split = dashboardCharts.autonomySplit || { L4: 0, L2: 0 };
-        return new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: ['L4 Auto', 'L2 HITL'],
-            datasets: [{
-              data: [split.L4 || 0, split.L2 || 0],
-              backgroundColor: ['rgba(34,197,94,0.8)', 'rgba(245,158,11,0.8)'],
-              borderWidth: 1,
-              borderColor: ['#16a34a', '#b45309'],
-              barThickness: 14
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-              x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 8 } } },
-              y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', font: { size: 8 }, precision: 0 } }
-            }
-          }
-        });
-      },
-      (chart) => {
-        const split = dashboardCharts.autonomySplit || { L4: 0, L2: 0 };
-        chart.data.datasets[0].data = [split.L4 || 0, split.L2 || 0];
-      }
-    );
-  }, [dashboardCharts]);
-
-  useEffect(() => {
-    return () => {
-      Object.values(incidentChartRef.current.charts).forEach((c) => c && c.destroy());
-      Object.values(dashChartRef.current.charts).forEach((c) => c && c.destroy());
-    };
-  }, []);
-
   // Custom Ingestion Submission
   const handleIngestLogsSubmit = async (e) => {
     e.preventDefault();
@@ -964,7 +785,7 @@ function App() {
     }
 
     if (dbStatus === 'RUNNING') {
-      return { icon: '⚙️', color: 'border-indigo-500 text-indigo-400 bg-indigo-950/20 shadow-glowBlue animate-pulse', text: 'INVESTIGATING', spinner: true };
+      return { icon: '⚙️', color: 'border-blue-500 text-blue-300 bg-blue-950/20 shadow-glowBlue animate-pulse', text: 'INVESTIGATING', spinner: true };
     }
     if (dbStatus === 'COMPLETED') {
       return { icon: '🟢', color: 'border-emerald-500/80 text-emerald-400 bg-emerald-950/10', text: 'COMPLETE', spinner: false };
@@ -989,77 +810,99 @@ function App() {
   // Authentication Interface
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center gradient-bg p-4 font-sans select-none relative overflow-hidden">
-        {/* Animated background elements */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-600/20 rounded-full blur-3xl animate-blob"></div>
-          <div className="absolute top-1/3 right-1/4 w-80 h-80 bg-accent-purple/20 rounded-full blur-3xl animate-blob" style={{ animationDelay: '2s' }}></div>
-          <div className="absolute bottom-1/4 left-1/3 w-72 h-72 bg-accent-pink/20 rounded-full blur-3xl animate-blob" style={{ animationDelay: '4s' }}></div>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#000000] p-4 font-sans select-none relative overflow-hidden">
+        {/* Glow orbit background effects */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-1/4 -left-1/4 w-[600px] h-[600px] rounded-full border border-blue-500/5 opacity-40"></div>
+          <div className="absolute -bottom-1/4 -right-1/4 w-[600px] h-[600px] rounded-full border border-blue-500/5 opacity-40"></div>
         </div>
 
-        <div className="w-full max-w-sm glass rounded-3xl p-8 shadow-glass-lg space-y-6 relative z-10 animate-scale-in">
-          <div className="text-center space-y-3">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-600 to-accent-purple border border-white/10 text-white shadow-glowBlue mb-3 animate-float">
-              <Shield className="w-8 h-8" />
-            </div>
-            <h1 className="text-3xl font-black font-outfit text-gradient tracking-tight">Threat Console</h1>
-            <p className="text-sm text-slate-400 font-mono">Autonomous Incident Response & Mitigation</p>
+        <div className="w-full max-w-md flex flex-col items-center space-y-6 relative z-10 animate-scale-in">
+          {/* Logo Diagram */}
+          <img 
+            src="/images/shield-check.png" 
+            className="w-[680px] h-[80px] object-contain -mb-8" 
+            style={{ mixBlendMode: 'screen' }}
+            alt="Shield Security Diagram" 
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+
+          <div className="text-center -mt-10">
+            <h1 className="text-2xl font-black text-white tracking-tight flex flex-col items-center leading-tight">
+              <span>Incident Response</span>
+              <span className="gradient-text font-bold">Postmortem Agent</span>
+            </h1>
+            <p className="text-[10px] text-slate-400 font-sans tracking-wide mt-1.5 uppercase font-medium">Autonomous Incident Response & Mitigation</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-5 font-sans">
-            <div className="space-y-2">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest font-mono">Username</label>
-              <input 
-                type="text" 
-                value={username} 
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 font-mono transition-all"
-                placeholder="admin"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest font-mono">Password</label>
-              <input 
-                type="password" 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 font-mono transition-all"
-                placeholder="••••••••"
-                required
-              />
-            </div>
-
-            {authError && (
-              <div className="p-3 bg-danger-500/10 border border-danger-500/30 rounded-xl flex items-center space-x-2 text-xs text-danger-400 font-mono animate-slide-in">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>{authError}</span>
+          <div className="w-full max-w-sm card-panel p-8 shadow-2xl relative">
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-sans">Username</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input 
+                    type="text" 
+                    value={username} 
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full bg-[#030712]/60 border border-[#1b2233] rounded-xl pl-11 pr-4 py-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-[#3b82f6] font-sans transition-all"
+                    placeholder="admin"
+                    required
+                  />
+                </div>
               </div>
-            )}
+              
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-sans">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input 
+                    type="password" 
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-[#030712]/60 border border-[#1b2233] rounded-xl pl-11 pr-12 py-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-[#3b82f6] font-sans transition-all"
+                    placeholder="••••••••"
+                    required
+                  />
+                  <button type="button" className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-all">
+                    <Eye className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
 
-            <button 
-              type="submit" 
-              disabled={isAuthenticating}
-              className="w-full btn-primary text-white font-bold py-3.5 px-4 rounded-xl transition-all text-xs uppercase tracking-wider font-mono flex items-center justify-center space-x-2 disabled:opacity-50"
-            >
-              {isAuthenticating ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <span>Sign In</span>
-                  <LogIn className="w-4 h-4" />
-                </>
+              {authError && (
+                <div className="p-3 bg-danger-500/10 border border-danger-500/30 rounded-xl flex items-center space-x-2 text-xs text-danger-400 font-mono animate-slide-in">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{authError}</span>
+                </div>
               )}
-            </button>
-          </form>
 
-          <div className="pt-4 border-t border-white/5 text-center">
-            <p className="text-[10px] text-slate-500 font-mono">Secured by Enkrypt AI • Mastra Powered</p>
+              <button 
+                type="submit" 
+                disabled={isAuthenticating}
+                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 border border-blue-500/30 text-white font-semibold py-3.5 px-4 rounded-xl transition-all text-xs uppercase tracking-wider font-sans flex items-center justify-center space-x-2 shadow-[0_0_15px_rgba(59,130,246,0.25)] hover:shadow-[0_0_25px_rgba(59,130,246,0.45)] disabled:opacity-50"
+              >
+                {isAuthenticating ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <span>Sign In</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+
+          <div className="flex items-center justify-center space-x-2 text-[10px] text-slate-500 font-sans mt-8">
+            <Shield className="w-3.5 h-3.5 text-slate-600" />
+            <span>Secured by Enkrypt AI • Mastra Powered</span>
           </div>
         </div>
       </div>
     );
   }
+
   const getPostmortemProgress = () => {
     const reportLogs = liveLogs.filter(log => log.stepId === 'report-step');
     if (reportLogs.length > 0) {
@@ -1076,15 +919,354 @@ function App() {
     return 0;
   };
 
-  return (
-    <div className="h-screen w-screen mesh-gradient text-slate-100 flex font-sans select-none overflow-hidden relative">
-      {/* Ambient background effects */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-primary-900/10 via-transparent to-accent-purple/10"></div>
-        <div className="absolute top-20 right-20 w-96 h-96 bg-primary-600/10 rounded-full blur-3xl animate-blob"></div>
-        <div className="absolute bottom-20 left-20 w-80 h-80 bg-accent-purple/10 rounded-full blur-3xl animate-blob" style={{ animationDelay: '3s' }}></div>
-      </div>
+  const renderContent = () => {
+    switch (activeNav) {
+      case 'dashboard':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            {/* COLUMN 1: Active Incidents, Risk trend chart, Similar incidents */}
+            <div className="lg:col-span-4 space-y-6">
+              <ActiveIncidents 
+                incidents={incidents}
+                selectedId={selectedId}
+                setSelectedId={setSelectedId}
+                setSelectedIncident={setSelectedIncident}
+                setShowIngestModal={setShowIngestModal}
+              />
+              <RiskScoreCharts 
+                incident={incident}
+                riskHistory={riskHistory}
+              />
+              <div className="glass-panel glow-hover rounded-[12px] p-5 space-y-3 shadow-[0_4px_20px_rgba(0,0,0,0.4)] animate-fadeInUp">
+                <div className="flex items-center justify-between border-b border-[var(--border-default)] pb-2 select-none">
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2 font-mono">
+                    <Database className="w-4 h-4 text-blue-300" />
+                    <span>Similar Incidents</span>
+                  </h3>
+                  <button
+                    onClick={() => triggerCorrelation(selectedId)}
+                    className="text-[10px] text-slate-400 hover:text-white uppercase tracking-wide font-mono"
+                  >
+                    Re-run
+                  </button>
+                </div>
+                <SimilarIncidentsPanel
+                  incidentId={selectedId}
+                  token={token}
+                  apiBase={API_BASE}
+                  onSelectIncident={setSelectedId}
+                />
+              </div>
+            </div>
 
+            {/* COLUMN 2: Workflow pipeline, Threat Score gauge, Decision support */}
+            <div className="lg:col-span-5 space-y-6">
+              <div className="glass-panel glow-hover-violet rounded-[18px] flex flex-col overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.4)] animate-fadeInUp">
+                <ExecutionPipeline 
+                  middleTab={middleTab}
+                  setMiddleTab={setMiddleTab}
+                  status={status}
+                  incident={incident}
+                  steps={steps}
+                  getTierStatus={getTierStatus}
+                  handleApprove={handleApprove}
+                  handleReject={handleReject}
+                  getPostmortemProgress={getPostmortemProgress}
+                  liveLogs={liveLogs}
+                  MarkdownRenderer={MarkdownRenderer}
+                />
+              </div>
+              <ThreatScoreGauge score={incident?.threatScore} />
+              <div className="glass-panel glow-hover rounded-[12px] p-5 space-y-3 shadow-[0_4px_20px_rgba(0,0,0,0.4)] animate-fadeInUp">
+                <div className="flex items-center justify-between border-b border-[var(--border-default)] pb-2 select-none">
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+                    <ShieldAlert className="w-4 h-4 text-orange-400" />
+                    <span>Decision Support</span>
+                  </h3>
+                </div>
+                <DecisionSupportPanel incident={incident} token={token} apiBase={API_BASE} />
+              </div>
+            </div>
+
+            {/* COLUMN 3: Live events stream, Threat Intel feeds, System status */}
+            <div className="lg:col-span-3 space-y-6">
+              <LiveEventStream 
+                liveLogs={liveLogs}
+                timeline={timeline}
+                evidenceChain={evidenceChain}
+              />
+              <ThreatIntel 
+                incident={incident}
+                evidenceChain={evidenceChain}
+                threatIntelStats={threatIntelStats}
+                chartData={chartData}
+              />
+              <SystemHealth 
+                systemHealth={systemHealth}
+                dashboardCharts={dashboardCharts}
+                incident={incident}
+                chartData={chartData}
+                hideChart={true}
+              />
+            </div>
+
+          </div>
+        );
+
+      case 'incidents':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <div className="lg:col-span-4">
+              <ActiveIncidents 
+                incidents={incidents}
+                selectedId={selectedId}
+                setSelectedId={setSelectedId}
+                setSelectedIncident={setSelectedIncident}
+                setShowIngestModal={setShowIngestModal}
+              />
+            </div>
+            <div className="lg:col-span-8">
+              <SimilarIncidentsPanel
+                incidentId={selectedId}
+                token={token}
+                apiBase={API_BASE}
+                onSelectIncident={setSelectedId}
+              />
+            </div>
+          </div>
+        );
+
+      case 'investigation':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Active Incident Header Banner */}
+            <div className="lg:col-span-12 glass-panel p-4 rounded-[12px] flex items-center justify-between border border-[var(--border-default)] select-none">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-[10px] font-mono font-bold bg-blue-950/40 text-blue-300 px-2 py-0.5 rounded-full border border-blue-900/30">
+                    ACTIVE CASE
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono font-bold">
+                    {incident?.incidentId || selectedId}
+                  </span>
+                </div>
+                <h2 className="text-base font-bold text-white mt-1 uppercase tracking-wider font-mono">
+                  {incident?.incidentId?.includes('STUFF') ? 'Credential Stuffing' : incident?.incidentId?.includes('SCAN') ? 'Distributed Port Scan' : incident?.incidentId?.includes('SQL') ? 'SQL Injection' : incident?.incidentId?.includes('DDOS') ? 'HTTP Flood DDoS' : incident?.incidentId?.includes('RANSOM') ? 'Ransomware Compromise' : 'General Threat Analysis'} — {incident?.targetHost || 'db-prod-02'}
+                </h2>
+              </div>
+              <div>
+                <span className="text-[10px] font-mono font-bold bg-blue-950/40 text-blue-300 px-3 py-1 rounded-full border border-blue-900/30 uppercase tracking-widest">
+                  STATUS: {incident?.status || 'INGESTED'}
+                </span>
+              </div>
+            </div>
+
+            <div className="lg:col-span-6 space-y-6">
+              <DecisionSupportPanel incident={incident} token={token} apiBase={API_BASE} />
+              <AIInsights incident={incident} />
+            </div>
+            <div className="lg:col-span-6">
+              <LiveEventStream 
+                liveLogs={liveLogs}
+                timeline={timeline}
+                evidenceChain={evidenceChain}
+              />
+            </div>
+          </div>
+        );
+
+      case 'evidence':
+        return (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <div className="card-panel p-5 space-y-2">
+              <h4 className="text-[11px] font-bold text-[#3B82F6] uppercase tracking-wider font-mono">Evidence Vault Briefing</h4>
+              <p className="text-[11px] text-[#A0A8B3] leading-relaxed font-sans">
+                The Evidence Vault acts as a cryptographically secure repository storing real-time forensic pointers collected by autonomous agents. Each payload block contains target hostname, threat signature metrics, source timestamps, and raw process telemetry. Pointers mapped here are ingested into our Qdrant memory collections to serve as vectors for post-mortem learning loops.
+              </p>
+            </div>
+            
+            <div className="glass-panel p-6 rounded-[18px]">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center space-x-2">
+                <Database className="w-5 h-5 text-blue-300" />
+                <span>Evidence Vault ({evidenceChain.length} pointers)</span>
+              </h3>
+              <div className="space-y-4">
+                {evidenceChain.map((entry, idx) => (
+                  <div key={idx} className="bg-slate-900/60 p-4 border border-[var(--border-default)] rounded-[12px] flex justify-between items-center">
+                    <div>
+                      <div className="font-mono text-xs text-white font-bold">{entry.payload?.host || 'host-system'}</div>
+                      <div className="text-xs text-slate-400 mt-1">{entry.summary}</div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] font-mono font-bold bg-blue-950/40 text-blue-300 px-2 py-0.5 rounded-full border border-blue-900/30">
+                        CONF: {Math.round(entry.confidence * 100)}%
+                      </span>
+                      <div className="text-[9px] text-slate-500 mt-1">{new Date(entry.observedAt).toLocaleTimeString()}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'intel':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-6">
+              <ThreatIntel 
+                incident={incident}
+                evidenceChain={evidenceChain}
+                threatIntelStats={threatIntelStats}
+                chartData={chartData}
+              />
+            </div>
+            <div className="lg:col-span-6 glass-panel p-6 rounded-[18px] h-fit">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 font-mono">MITRE ATT&CK Mapping matrix</h3>
+              <div className="grid grid-cols-3 gap-3">
+                {['T1110.004', 'T1068', 'T1041', 'T1059', 'T1562', 'T1078'].map((tech, idx) => (
+                  <div key={idx} className="bg-slate-900/40 border border-[var(--border-default)] p-3 rounded-[8px] text-center">
+                    <div className="text-[10px] text-cyan-400 font-mono font-bold">MITRE ATT&CK</div>
+                    <div className="text-xs font-bold text-white mt-1 font-mono">{tech}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'mitre':
+        return (
+          <div className="max-w-4xl mx-auto glass-panel p-6 rounded-[18px] space-y-4">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider border-b border-[var(--border-default)] pb-3">MITRE ATT&CK Mapping Details</h3>
+            <div className="space-y-4">
+              {[
+                { id: 'T1110.004', name: 'Brute Force: Credential Stuffing', desc: 'Adversaries may use credentials obtained from breach dumps or past credential harvesting campaigns to attempt login across many accounts.' },
+                { id: 'T1068', name: 'Exploitation for Privilege Escalation', desc: 'Adversaries may exploit software vulnerabilities in an attempt to elevate system privileges.' },
+                { id: 'T1041', name: 'Exfiltration Over Alternative Protocol', desc: 'Adversaries may steal data by sending it over a protocol other than standard ones.' }
+              ].map((tech) => (
+                <div key={tech.id} className="bg-slate-900/50 p-4 border border-[var(--border-default)] rounded-[12px]">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-white font-mono">{tech.id} — {tech.name}</span>
+                    <span className="text-[9px] bg-cyan-950/30 text-cyan-400 font-bold px-2 py-0.5 rounded border border-cyan-900/30">MAPPED</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-2 font-sans leading-relaxed">{tech.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+
+      case 'timeline':
+        return (
+          <div className="max-w-3xl mx-auto">
+            <RecentActivity timeline={timeline} liveLogs={liveLogs} />
+          </div>
+        );
+
+      case 'postmortems':
+        return (
+          <div className="max-w-5xl mx-auto h-[784px]">
+            <ExecutionPipeline 
+              middleTab="postmortem"
+              setMiddleTab={setMiddleTab}
+              status={status}
+              incident={incident}
+              steps={steps}
+              getTierStatus={getTierStatus}
+              handleApprove={handleApprove}
+              handleReject={handleReject}
+              getPostmortemProgress={getPostmortemProgress}
+              liveLogs={liveLogs}
+              MarkdownRenderer={MarkdownRenderer}
+            />
+          </div>
+        );
+
+      case 'kb':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-12 card-panel p-5 space-y-2">
+              <h4 className="text-[11px] font-bold text-[#3B82F6] uppercase tracking-wider font-mono">AI Insights & Knowledge Base Briefing</h4>
+              <p className="text-[11px] text-[#A0A8B3] leading-relaxed font-sans">
+                AI Insights leverage Cohere semantic embeddings combined with Qdrant vector store indexing. When an active containment event triggers, the system automatically runs hybrid RAG queries against historical post-mortems and the CISA Known Exploited Vulnerabilities (KEV) feed. This provides real-time containment recommendations and maps techniques to target SOP mitigation templates.
+              </p>
+            </div>
+            
+            <div className="lg:col-span-8">
+              <AIInsights incident={incident} />
+            </div>
+            <div className="lg:col-span-4 glass-panel p-6 rounded-[18px]">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono mb-3">Qdrant Memory Status</h3>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Collections:</span>
+                  <span className="font-bold text-white font-mono">2 collections</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Embeddings:</span>
+                  <span className="font-bold text-white font-mono">Cohere (384-dim)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'reports':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-12 card-panel p-5 space-y-2">
+              <h4 className="text-[11px] font-bold text-[#3B82F6] uppercase tracking-wider font-mono">Operations Report & Risk Profiler Briefing</h4>
+              <p className="text-[11px] text-[#A0A8B3] leading-relaxed font-sans">
+                Operations and Threat Risk Profiler dashboards compile real-time telemetry metrics across microservices, databases, and message queues (Redis / Kafka). The risk score index dynamically calculates incident severities, tracking cumulative host-level compromises over time. Historical logs are aggregated into detailed report cards to optimize future response SLA gates.
+              </p>
+            </div>
+
+            <div className="lg:col-span-6">
+              <SystemHealth 
+                systemHealth={systemHealth}
+                dashboardCharts={dashboardCharts}
+                incident={incident}
+                chartData={chartData}
+              />
+            </div>
+            <div className="lg:col-span-6">
+              <RiskScoreCharts 
+                incident={incident}
+                riskHistory={riskHistory}
+              />
+            </div>
+          </div>
+        );
+
+      case 'settings':
+        return (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <SimulationControls triggerSimulation={triggerDirectSimulation} />
+            <div className="glass-panel p-6 rounded-[18px]">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono mb-4">SOC Orchestrator Credentials</h3>
+              <div className="grid grid-cols-2 gap-4 text-xs font-mono">
+                <div className="p-3 bg-slate-900/50 border border-[var(--border-default)] rounded-[8px]">
+                  <span className="text-slate-500">API Endpoint:</span>
+                  <div className="text-cyan-400 mt-1 select-all">{API_BASE}</div>
+                </div>
+                <div className="p-3 bg-slate-900/50 border border-[var(--border-default)] rounded-[8px]">
+                  <span className="text-slate-500">WS Gateway:</span>
+                  <div className="text-violet-400 mt-1 select-all">{WS_BASE}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      default:
+        return <div>Select a navigation item</div>;
+    }
+  };
+
+  return (
+    <div className="w-full flex text-[#E8EBF3] text-xs overflow-hidden h-screen font-sans page-bg select-none relative">
       <OnboardingTour />
 
       {/* Left Sidebar */}
@@ -1111,109 +1293,13 @@ function App() {
           incidents={incidents}
         />
 
-        {/* 3-Column main body and bottom sections in a scrollable container */}
-        <div id="app-scroll" className="flex-1 overflow-y-auto px-6 pb-6 space-y-6 terminal-scroll select-none">
-          {/* Main 3-Column Grid Split: Column 1 (30%), Column 2 (45%), Column 3 (25%) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            
-            {/* COLUMN 1: Active Incidents list & Risk scoring charts (lg:col-span-4 / 30% equivalent) */}
-            <div className="lg:col-span-4 space-y-6">
-              <div id="section-incidents">
-                <ActiveIncidents 
-                  incidents={incidents}
-                  selectedId={selectedId}
-                  setSelectedId={setSelectedId}
-                  setSelectedIncident={setSelectedIncident}
-                  setShowIngestModal={setShowIngestModal}
-                />
-              </div>
-              <RiskScoreCharts 
-                incident={incident}
-                riskHistory={riskHistory}
-              />
-            </div>
+        {/* Render page sections dynamically based on sidebar navigation selection */}
+        <div id="app-scroll" className="flex-1 overflow-y-auto px-6 pb-6 space-y-4 terminal-scroll select-none">
+          {renderContent()}
 
-            {/* COLUMN 2: Workflow execution pipeline & Post-mortem tab (lg:col-span-5 / 45% equivalent) */}
-            <div id="section-pipeline" className="lg:col-span-5 bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-[18px] flex flex-col h-[784px] overflow-hidden">
-              <ExecutionPipeline 
-                middleTab={middleTab}
-                setMiddleTab={setMiddleTab}
-                status={status}
-                incident={incident}
-                steps={steps}
-                getTierStatus={getTierStatus}
-                handleApprove={handleApprove}
-                handleReject={handleReject}
-                getPostmortemProgress={getPostmortemProgress}
-                liveLogs={liveLogs}
-                MarkdownRenderer={MarkdownRenderer}
-              />
-            </div>
-
-            {/* COLUMN 3: Live events stream, Threat feeds stats, System health status (lg:col-span-3 / 25% equivalent) */}
-            <div className="lg:col-span-3 space-y-6">
-              <div id="section-evidence">
-                <LiveEventStream 
-                  liveLogs={liveLogs}
-                  timeline={timeline}
-                  evidenceChain={evidenceChain}
-                />
-              </div>
-              <div id="section-intel">
-                <ThreatIntel 
-                  incident={incident}
-                  evidenceChain={evidenceChain}
-                  threatIntelStats={threatIntelStats}
-                />
-              </div>
-
-              {/* Similar Incidents correlation panel */}
-              <div className="bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-[18px] p-4 space-y-3">                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-                    <Database className="w-4 h-4 text-indigo-400" />
-                    <span>Similar Incidents</span>
-                  </h3>
-                  <button
-                    onClick={() => triggerCorrelation(selectedId)}
-                    className="text-[10px] text-indigo-400 hover:text-indigo-300 uppercase tracking-wide"
-                  >
-                    Re-run
-                  </button>
-                </div>
-<SimilarIncidentsPanel
-                   incidentId={selectedId}
-                   token={token}
-                   apiBase={API_BASE}
-                   onSelectIncident={setSelectedId}
-                 />
-               </div>
-
-               {/* Decision Support Panel */}
-               <div className="bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-[18px] p-4 space-y-3">
-                 <div className="flex items-center justify-between">
-                   <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-                     <ShieldAlert className="w-4 h-4 text-orange-400" />
-                     <span>Decision Support</span>
-                   </h3>
-                 </div>
-                 <DecisionSupportPanel incident={incident} token={token} apiBase={API_BASE} />
-               </div>
-
-               <div id="section-reports">
-                <SystemHealth 
-                  systemHealth={systemHealth}
-                  dashboardCharts={dashboardCharts}
-                />
-              </div>
-            </div>
-
-          </div>
-
-          {/* Bottom Utility Row (3 Columns: Simulation Controls, Recent Activity, AI Insights) */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <SimulationControls triggerSimulation={triggerDirectSimulation} />
-            <div id="section-timeline"><RecentActivity timeline={timeline} liveLogs={liveLogs} /></div>
-            <div id="section-kb"><AIInsights incident={incident} /></div>
+          {/* Footer */}
+          <div className="text-center text-[9px] text-[#5C6478] py-2">
+            © 2025 IR Agent. All rights reserved.
           </div>
         </div>
       </div>
@@ -1221,11 +1307,11 @@ function App() {
       {/* CUSTOM LOG INGESTION DIALOG MODAL */}
       {showIngestModal && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="w-full max-w-xl glass rounded-2xl p-6 shadow-glass-lg space-y-5 animate-scale-in">
+          <div className="w-full max-w-xl glass rounded-2xl p-6 shadow-glass-lg space-y-5 animate-scale-in max-h-[90vh] overflow-y-auto terminal-scroll">
             <div className="flex justify-between items-center border-b border-white/10 pb-4">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-purple to-primary-600 flex items-center justify-center">
-                  <Workflow className="w-5 h-5 text-white" />
+                <div className="w-8 h-8 rounded-[6px] bg-slate-900 border border-[var(--border-default)] flex items-center justify-center shadow-inner">
+                  <Database className="w-4 h-4 text-blue-300" />
                 </div>
                 <h2 className="text-sm font-bold text-white uppercase tracking-wider">Run Mitigation Pipeline</h2>
               </div>
@@ -1242,22 +1328,39 @@ function App() {
               <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest font-mono">Preset Attack Log Patterns</label>
               <div className="flex flex-wrap gap-2 text-[10px] font-mono font-bold">
                 <button 
+                  type="button"
                   onClick={() => applyLogsPreset('stuffing')}
-                  className="bg-slate-950/50 hover:bg-slate-900/50 border border-white/10 text-accent-purple px-4 py-2 rounded-xl transition-all hover:border-accent-purple/50 hover:shadow-glowPurple"
+                  className="btn-approve-glow px-4 py-2 rounded-xl transition-all"
                 >
                   Credential Stuffing — db-prod-02
                 </button>
                 <button 
+                  type="button"
                   onClick={() => applyLogsPreset('scan')}
-                  className="bg-slate-950/50 hover:bg-slate-900/50 border border-white/10 text-accent-purple px-4 py-2 rounded-xl transition-all hover:border-accent-purple/50 hover:shadow-glowPurple"
+                  className="btn-approve-glow px-4 py-2 rounded-xl transition-all"
                 >
                   Distributed Port Scan — api-gw-01
                 </button>
                 <button 
+                  type="button"
                   onClick={() => applyLogsPreset('sql')}
-                  className="bg-slate-950/50 hover:bg-slate-900/50 border border-white/10 text-accent-purple px-4 py-2 rounded-xl transition-all hover:border-accent-purple/50 hover:shadow-glowPurple"
+                  className="btn-approve-glow px-4 py-2 rounded-xl transition-all"
                 >
                   SQL Injection — web-01 (WAF)
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => applyLogsPreset('ddos')}
+                  className="btn-approve-glow px-4 py-2 rounded-xl transition-all"
+                >
+                  HTTP Flood DDoS — web-prod-01
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => applyLogsPreset('ransom')}
+                  className="btn-approve-glow px-4 py-2 rounded-xl transition-all"
+                >
+                  Ransomware Compromise — fileserv-01
                 </button>
               </div>
             </div>
@@ -1269,7 +1372,7 @@ function App() {
                   type="text" 
                   value={customIncidentId}
                   onChange={(e) => setCustomIncidentId(e.target.value)}
-                  className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-accent-purple focus:ring-2 focus:ring-accent-purple/20 font-mono transition-all"
+                  className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-mono transition-all"
                   placeholder="INC-2026-STUFF-002"
                   required
                 />
@@ -1280,7 +1383,7 @@ function App() {
                 <textarea 
                   value={customLogs}
                   onChange={(e) => setCustomLogs(e.target.value)}
-                  className="w-full h-44 bg-slate-950/50 border border-white/10 rounded-xl p-4 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-accent-purple focus:ring-2 focus:ring-accent-purple/20 font-mono leading-relaxed transition-all resize-none"
+                  className="w-full h-44 bg-slate-950/50 border border-white/10 rounded-xl p-4 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-mono leading-relaxed transition-all resize-none"
                   placeholder={`db-prod-02,mysqld,HIGH,Failed login from 192.168.1.105\ndb-prod-02,mysqld,CRITICAL,Unauthorized access detected`}
                   required
                 />
@@ -1290,7 +1393,7 @@ function App() {
                 <button 
                   type="submit" 
                   disabled={isIngesting || !customIncidentId || !customLogs}
-                  className="flex-1 btn-primary text-white font-bold py-3.5 px-4 rounded-xl transition-all text-xs uppercase tracking-wide flex items-center justify-center space-x-2 disabled:opacity-50"
+                  className="flex-1 btn-approve-glow text-white font-bold py-3.5 px-4 rounded-xl transition-all text-xs uppercase tracking-wide flex items-center justify-center space-x-2 disabled:opacity-50 cursor-pointer"
                 >
                   {isIngesting ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />

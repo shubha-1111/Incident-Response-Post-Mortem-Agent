@@ -1,11 +1,16 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Globe, ShieldAlert } from 'lucide-react';
+import Chart from 'chart.js/auto';
 
 export function ThreatIntel({ 
   incident, 
   evidenceChain, 
-  threatIntelStats 
+  threatIntelStats,
+  chartData
 }) {
+  const chartRef = useRef(null);
+  const chartInstance = useRef(null);
+
   // Resolve AbuseIPDB, VirusTotal, and OTX scores
   let abuseScore = threatIntelStats?.abuseIpdb ?? 0;
   let vtScore = threatIntelStats?.virusTotal ?? 0;
@@ -54,17 +59,74 @@ export function ThreatIntel({
 
   const mitreTags = getMitreAttackTags();
 
+  useEffect(() => {
+    if (!chartRef.current) return;
+
+    if (chartInstance.current) {
+      chartInstance.current.destroy();
+    }
+
+    const bd = chartData?.threatBreakdown?.breakdown ?? {};
+    const keys = Object.keys(bd);
+    if (keys.length === 0) return;
+
+    const ctx = chartRef.current;
+    chartInstance.current = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: keys.map((k) => k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase())),
+        datasets: [{
+          data: keys.map((k) => bd[k] ?? 0),
+          backgroundColor: [
+            'rgba(251, 58, 93, 0.8)',
+            'rgba(245, 158, 11, 0.8)',
+            'rgba(129, 140, 248, 0.8)',
+            'rgba(45, 212, 191, 0.8)',
+            'rgba(167, 139, 250, 0.8)',
+            'rgba(56, 189, 248, 0.8)'
+          ],
+          borderWidth: 0,
+          borderRadius: 4,
+          barThickness: 8
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { 
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(15, 20, 32, 0.9)',
+            titleFont: { family: 'JetBrains Mono', size: 9 },
+            bodyFont: { family: 'JetBrains Mono', size: 9 },
+            padding: 8,
+            cornerRadius: 6
+          }
+        },
+        scales: {
+          x: { min: 0, max: 100, grid: { color: 'rgba(255, 255, 255, 0.03)' }, ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 8 } } },
+          y: { grid: { display: false }, ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 8 } } }
+        }
+      }
+    });
+
+    return () => {
+      if (chartInstance.current) {
+        chartInstance.current.destroy();
+        chartInstance.current = null;
+      }
+    };
+  }, [chartData]);
+
   return (
-    <div className="threat-intel-panel bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-[10px] p-5 flex flex-col space-y-4">
+    <div className="threat-intel-panel glass-panel glow-hover rounded-[12px] p-5 flex flex-col space-y-4 shadow-[0_4px_20px_rgba(0,0,0,0.4)] animate-fadeInUp">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[var(--border-default)] pb-3 select-none">
         <div className="flex items-center space-x-2 text-[var(--text-primary)]">
           <Globe className="w-4 h-4 text-[var(--accent-violet)]" />
           <h3 className="text-xs font-semibold uppercase tracking-wider font-sans">Threat Intelligence</h3>
         </div>
-        <button className="text-[10px] font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all font-mono">
-          View All →
-        </button>
       </div>
 
       {/* Provider list */}
@@ -110,7 +172,7 @@ export function ThreatIntel({
           Threat Breakdown
         </span>
         <div className="h-32 relative bg-[var(--bg-base)] border border-[var(--border-default)] rounded-[10px] p-2">
-          <canvas id="threatBreakdownChart"></canvas>
+          <canvas ref={chartRef}></canvas>
         </div>
       </div>
     </div>

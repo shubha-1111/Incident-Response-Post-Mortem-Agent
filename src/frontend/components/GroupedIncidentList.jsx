@@ -1,7 +1,7 @@
 import React from 'react';
 import { IncidentGroup } from './IncidentGroup';
 
-export function GroupedIncidentList({ incidents, onSelect }) {
+export function GroupedIncidentList({ incidents, onSelect, selectedId }) {
   const critical = incidents.filter(i => (i.threatScore ?? 0) >= 80);
   const high = incidents.filter(i => {
     const s = i.threatScore ?? 0;
@@ -21,6 +21,7 @@ export function GroupedIncidentList({ incidents, onSelect }) {
           incidents={critical} 
           onSelect={onSelect}
           colorKey="CRITICAL"
+          selectedId={selectedId}
         />
       )}
       {high.length > 0 && (
@@ -29,6 +30,7 @@ export function GroupedIncidentList({ incidents, onSelect }) {
           incidents={high} 
           onSelect={onSelect}
           colorKey="HIGH"
+          selectedId={selectedId}
         />
       )}
       {medium.length > 0 && (
@@ -37,6 +39,7 @@ export function GroupedIncidentList({ incidents, onSelect }) {
           incidents={medium} 
           onSelect={onSelect}
           colorKey="MEDIUM"
+          selectedId={selectedId}
         />
       )}
       {low.length > 0 && (
@@ -45,6 +48,7 @@ export function GroupedIncidentList({ incidents, onSelect }) {
           incidents={low} 
           onSelect={onSelect}
           colorKey="LOW"
+          selectedId={selectedId}
         />
       )}
     </div>

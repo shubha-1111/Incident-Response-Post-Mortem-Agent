@@ -19,21 +19,21 @@ const urgencyConfig = {
   },
   MEDIUM: {
     icon: ShieldQuestion,
-    color: 'var(--severity-medium)',
-    bg: 'rgba(56, 189, 248, 0.12)',
-    border: 'var(--severity-medium)',
+    color: '#60A5FA',
+    bg: 'rgba(96, 165, 250, 0.12)',
+    border: 'rgba(96, 165, 250, 0.4)',
     label: 'Medium - Monitor'
   },
   LOW: {
     icon: ShieldCheck,
-    color: 'var(--severity-low)',
-    bg: 'rgba(45, 212, 191, 0.12)',
-    border: 'var(--severity-low)',
+    color: '#93C5FD',
+    bg: 'rgba(147, 197, 253, 0.12)',
+    border: 'rgba(147, 197, 253, 0.4)',
     label: 'Low - Informational'
   }
 };
 
-export function IncidentGroup({ title, incidents, onSelect, colorKey }) {
+export function IncidentGroup({ title, incidents, onSelect, colorKey, selectedId }) {
   const config = urgencyConfig[colorKey];
 
   return (
@@ -53,6 +53,7 @@ export function IncidentGroup({ title, incidents, onSelect, colorKey }) {
             key={inc.incidentId}
             incident={inc}
             onSelect={onSelect}
+            isSelected={inc.incidentId === selectedId}
           />
         ))}
       </div>

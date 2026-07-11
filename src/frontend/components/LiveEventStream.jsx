@@ -100,22 +100,26 @@ export function LiveEventStream({
   };
 
   return (
-    <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-[10px] p-5 flex flex-col h-[280px]">
+    <div className="glass-panel glow-hover rounded-[12px] p-5 flex flex-col h-[280px] shadow-[0_4px_20px_rgba(0,0,0,0.4)] animate-fadeInUp">
       <div className="flex items-center space-x-2 text-[var(--text-primary)] mb-3 pb-2 border-b border-[var(--border-default)] select-none">
-        <Terminal className="w-4 h-4 text-[var(--accent-cyan)]" />
-        <h3 className="text-xs font-semibold uppercase tracking-wider font-sans">Live Event Stream</h3>
+        <Terminal className="w-4 h-4 text-white" />
+        <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-white">System Telemetry Log</h3>
       </div>
       
       {/* Terminal scroll block */}
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="flex-1 bg-[var(--bg-base)] border border-[var(--border-default)] rounded-[10px] p-3 font-mono text-[9px] overflow-y-auto overflow-x-hidden terminal-scroll space-y-2.5"
-      >
-        {renderLogs()}
+      <div className="flex-1 relative bg-[#060913] border border-[var(--border-default)] rounded-[8px] overflow-hidden flex flex-col shadow-inner">
+        <div className="terminal-scanline"></div>
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex-1 p-3.5 font-mono text-[10px] overflow-y-auto overflow-x-hidden terminal-scroll space-y-2 select-text text-slate-300 relative z-10"
+          style={{ textShadow: '0 0 2px rgba(103,232,249,0.2)' }}
+        >
+          {renderLogs()}
 
-        {/* Blinking cursor */}
-        <span className="animate-telemetry-pulse text-[var(--accent-cyan)] font-semibold block mt-1">█</span>
+          {/* Blinking cursor */}
+          <span className="animate-telemetry-pulse text-[var(--accent-cyan)] font-semibold inline-block ml-0.5 align-middle select-none">█</span>
+        </div>
       </div>
     </div>
   );

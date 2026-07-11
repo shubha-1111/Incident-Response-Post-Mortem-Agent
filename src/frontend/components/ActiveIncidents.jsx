@@ -16,18 +16,18 @@ export function ActiveIncidents({
   };
 
   return (
-    <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-[10px] p-5 flex flex-col h-[380px]">
+    <div className="glass-panel glow-hover rounded-[12px] p-5 flex flex-col h-[380px] shadow-[0_4px_20px_rgba(0,0,0,0.4)] animate-fadeInUp">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[var(--border-default)] pb-4 mb-4">
         <div className="flex items-center space-x-2 text-[var(--text-primary)]">
-          <div className="w-8 h-8 rounded-[6px] bg-[var(--bg-surface)] border border-[var(--border-default)] flex items-center justify-center">
+          <div className="w-8 h-8 rounded-[6px] bg-slate-900 border border-[var(--border-default)] flex items-center justify-center shadow-inner">
             <ShieldAlert className="w-4 h-4 text-[var(--severity-critical)]" />
           </div>
           <h2 className="text-xs font-semibold uppercase tracking-wider font-sans">Active Incidents</h2>
         </div>
         <button 
           onClick={() => setShowIngestModal(true)}
-          className="bg-[var(--bg-surface)] border border-[var(--border-default)] hover:border-[var(--accent-cyan)] flex items-center space-x-1.5 text-[var(--text-primary)] px-3 py-1.5 rounded-[6px] text-[10px] font-semibold transition-all"
+          className="btn-approve-glow flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold select-none cursor-pointer"
         >
           <Plus className="w-3 h-3" />
           <span>Ingest</span>
@@ -39,6 +39,7 @@ export function ActiveIncidents({
         <GroupedIncidentList 
           incidents={incidents} 
           onSelect={handleSelect}
+          selectedId={selectedId}
         />
       </div>
 

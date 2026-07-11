@@ -36,7 +36,7 @@ export function ExecutionPipeline({
             onClick={() => setMiddleTab('pipeline')}
             className={`py-4 px-1 border-b-2 font-semibold transition-all uppercase flex items-center space-x-1.5 ${
               middleTab === 'pipeline' 
-                ? 'border-[var(--accent-cyan)] text-[var(--accent-cyan)]' 
+                ? 'border-[#3B82F6] text-white' 
                 : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
           >
@@ -49,7 +49,7 @@ export function ExecutionPipeline({
             disabled={!['resolved', 'reported'].includes(status)}
             className={`py-4 px-1 border-b-2 font-semibold transition-all uppercase flex items-center space-x-1.5 disabled:opacity-25 ${
               middleTab === 'postmortem' 
-                ? 'border-[var(--accent-cyan)] text-[var(--accent-cyan)]' 
+                ? 'border-[#3B82F6] text-white' 
                 : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
           >
@@ -85,9 +85,9 @@ export function ExecutionPipeline({
             
             {/* Operator Approval / Override Banner */}
             {status === 'pending_human_review' && (
-              <div className="bg-[var(--bg-surface)] border border-[var(--severity-high)] rounded-[10px] p-5 space-y-4">
+              <div className="card-panel p-5 space-y-4">
                 <div className="flex items-start space-x-3.5">
-                  <div className="w-10 h-10 bg-[var(--bg-surface)] border border-[var(--severity-high)] text-[var(--severity-high)] rounded-[6px] flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-[6px] bg-slate-900 border border-slate-700 text-white flex items-center justify-center shrink-0">
                     <ShieldAlert className="w-5 h-5" />
                   </div>
                   <div className="space-y-1">
@@ -101,10 +101,16 @@ export function ExecutionPipeline({
                 <div className="flex space-x-3 pt-2 border-t border-[var(--border-default)]">
                   <button 
                     onClick={handleApprove}
-                    className="bg-[var(--severity-high)] hover:bg-[var(--severity-high)] text-[var(--bg-base)] font-semibold text-[10px] font-mono px-5 py-2.5 rounded-[6px] transition-all flex items-center space-x-1.5 uppercase"
+                    className="btn-approve-glow px-5 py-2.5 rounded-lg flex items-center gap-2 text-xs font-semibold select-none cursor-pointer"
                   >
-                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                    <span>Approve Containment</span>
+                    <img 
+                      src="/images/btn-approve.png" 
+                      className="w-4 h-4 object-contain" 
+                      style={{ mixBlendMode: 'screen' }} 
+                      alt="Check" 
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                    <span>Approve</span>
                   </button>
                   <button 
                     onClick={handleReject}
@@ -118,10 +124,7 @@ export function ExecutionPipeline({
             )}
 
             {status === 'human_denied' && (
-              <div className="bg-[var(--bg-surface)] border border-[var(--severity-critical)] rounded-[10px] p-5 flex items-center space-x-3.5">
-                <div className="w-10 h-10 bg-[var(--bg-surface)] border border-[var(--severity-critical)] text-[var(--severity-critical)] rounded-[6px] flex items-center justify-center shrink-0">
-                  <X className="w-5 h-5" />
-                </div>
+              <div className="card-panel p-5">
                 <div>
                   <h4 className="text-xs font-semibold font-mono text-[var(--text-primary)] uppercase tracking-wider">Containment Block Rejected</h4>
                   <p className="text-[11px] text-[var(--text-secondary)] font-sans mt-0.5 leading-relaxed">
@@ -132,11 +135,8 @@ export function ExecutionPipeline({
             )}
 
             {['resolved', 'reported'].includes(status) && (
-              <div className="bg-[var(--bg-surface)] border border-[var(--status-success)] rounded-[10px] p-5 flex justify-between items-center">
+              <div className="card-panel p-5 flex justify-between items-center">
                 <div className="flex items-center space-x-3.5">
-                  <div className="w-10 h-10 bg-[var(--bg-surface)] border border-[var(--status-success)] text-[var(--status-success)] rounded-[6px] flex items-center justify-center shrink-0">
-                    <CheckCircle className="w-5 h-5" />
-                  </div>
                   <div>
                     <h4 className="text-xs font-semibold font-mono text-[var(--text-primary)] uppercase tracking-wider">Incident Mitigation Completed</h4>
                     <p className="text-[11px] text-[var(--text-secondary)] font-sans mt-0.5 leading-relaxed">
@@ -157,8 +157,19 @@ export function ExecutionPipeline({
 
             {/* Workflow nodes graph */}
             {incident && (
-              <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-[10px] p-6 space-y-6">
-                <div className="flex items-center justify-between pb-3 border-b border-[var(--border-default)]">
+              <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-[10px] p-6 space-y-6 flex flex-col items-center">
+                {/* Glowing Star Visual Diagram from template */}
+                <div className="w-full flex justify-center mb-2">
+                  <img 
+                    src="/images/workflow.png" 
+                    className="w-48 h-28 object-contain" 
+                    style={{ mixBlendMode: 'screen' }}
+                    alt="Workflow Graph" 
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                </div>
+                
+                <div className="w-full pb-3 border-b border-[var(--border-default)] flex items-center justify-between">
                   <h3 className="text-xs font-semibold uppercase tracking-wider font-sans text-[var(--text-primary)]">Execution Pipeline</h3>
                   <span className="text-[9px] font-mono text-[var(--text-muted)] uppercase">Live graph status</span>
                 </div>
@@ -200,8 +211,8 @@ export function ExecutionPipeline({
                                isRunning ? 'var(--accent-cyan)' :
                                isFailed ? 'var(--severity-critical)' :
                                'var(--text-muted)',
-                        backgroundColor: isCompleted ? 'rgba(52, 211, 153, 0.12)' :
-                                         isRunning ? 'rgba(103, 232, 249, 0.12)' :
+                        backgroundColor: isCompleted ? 'rgba(147, 197, 253, 0.12)' :
+                                         isRunning ? 'rgba(147, 197, 253, 0.12)' :
                                          isFailed ? 'rgba(251, 58, 93, 0.12)' :
                                          'rgba(91, 100, 120, 0.12)',
                         borderColor: isCompleted ? 'var(--status-success)' :

@@ -38,7 +38,7 @@ export function RecentActivity({ timeline, liveLogs }) {
   const activities = getActivities();
 
   return (
-    <div className="bg-[#111827] border border-[rgba(255,255,255,0.06)] rounded-[18px] p-5 h-[160px] flex flex-col justify-between select-none">
+    <div className="glass-panel glow-hover rounded-[18px] p-5 h-[160px] flex flex-col justify-between select-none shadow-[0_4px_20px_rgba(0,0,0,0.4)] animate-fadeInUp">
       <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.06)] pb-2.5">
         <div className="flex items-center space-x-2 text-white">
           <Clock className="w-4 h-4 text-purple-400" />
