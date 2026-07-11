@@ -1,0 +1,1 @@
+- [Incident-response agent deploy gap](incident-response-deploy-gap.md) — Dockerfile copied frontend dist but nothing served it; check for this pattern in similarly-structured repos.
