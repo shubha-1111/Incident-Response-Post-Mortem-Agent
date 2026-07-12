@@ -46,16 +46,31 @@ app.use(express.json());
 // In-memory Rate Limiting: 100 req/15min per IP
 const rateLimitMap = new Map<string, { startTime: number; count: number }>();
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
-const RATE_LIMIT_MAX_REQUESTS = 100;
+// 500 requests per 15-minute window per client IP. The old value of 100 was
+// exhausted almost immediately by Railway's healthchecker + dashboard polling.
+const RATE_LIMIT_MAX_REQUESTS = 500;
+
+// Paths that are exempt from rate limiting. Healthcheck endpoints are polled
+// by the orchestrator every few seconds and must never consume quota.
+const RATE_LIMIT_EXEMPT = new Set(['/health', '/health/ready']);
+
 function rateLimiter(req: Request, res: Response, next: NextFunction) {
-  const ip =
-    (req.headers['x-forwarded-for'] as string) ||
+  // Skip exempt paths before doing any work.
+  if (RATE_LIMIT_EXEMPT.has(req.path)) return next();
+
+  // X-Forwarded-For is a comma-separated list: "client, proxy1, proxy2".
+  // Only the first entry is the real client IP; using the full string caused
+  // every request through the same proxy chain to share one bucket.
+  const forwarded = req.headers['x-forwarded-for'] as string | undefined;
+  const ip = (forwarded ? forwarded.split(',')[0].trim() : null) ||
     req.socket.remoteAddress ||
     'unknown-ip';
-  // Bypass rate limiting for localhost queries
+
+  // Bypass rate limiting for localhost / loopback.
   if (ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1' || ip === 'unknown-ip') {
     return next();
   }
+
   const now = Date.now();
   const bucket = rateLimitMap.get(ip);
   if (!bucket || now - bucket.startTime > RATE_LIMIT_WINDOW_MS) {
