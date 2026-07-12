@@ -43,12 +43,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// In-memory Rate Limiting: 100 req/15min per IP
+// In-memory Rate Limiting: 2000 req/15min per IP (unauthenticated only)
 const rateLimitMap = new Map<string, { startTime: number; count: number }>();
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
-// 500 requests per 15-minute window per client IP. The old value of 100 was
-// exhausted almost immediately by Railway's healthchecker + dashboard polling.
-const RATE_LIMIT_MAX_REQUESTS = 500;
+// 2000 requests per 15-minute window per client IP. Dashboard polling at 15s
+// intervals generates ~80 req/min which means ~1200 per 15 min — well within
+// this limit. Authenticated requests bypass rate limiting entirely.
+const RATE_LIMIT_MAX_REQUESTS = 2000;
 
 // Paths that are exempt from rate limiting. Healthcheck endpoints are polled
 // by the orchestrator every few seconds and must never consume quota.
@@ -57,6 +58,11 @@ const RATE_LIMIT_EXEMPT = new Set(['/health', '/health/ready']);
 function rateLimiter(req: Request, res: Response, next: NextFunction) {
   // Skip exempt paths before doing any work.
   if (RATE_LIMIT_EXEMPT.has(req.path)) return next();
+
+  // Authenticated requests (any Bearer token present) bypass rate limiting.
+  // Token validity is still enforced by requireAuth downstream.
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) return next();
 
   // X-Forwarded-For is a comma-separated list: "client, proxy1, proxy2".
   // Only the first entry is the real client IP; using the full string caused
@@ -422,6 +428,28 @@ app.post(['/reject/:id', '/api/incidents/:id/reject'], requireAuth, async (req: 
     success: true,
     data: state,
   });
+});
+
+/**
+ * DELETE /api/incidents
+ * Clear all incidents, workflow steps, timeline events and risk history.
+ * Useful for resetting the queue between demo runs.
+ */
+app.delete('/api/incidents', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const db = await getDatabase();
+    const allBefore = await getAllIncidents();
+    const count = allBefore.length;
+    await db.run('DELETE FROM workflow_steps');
+    await db.run('DELETE FROM timeline_events');
+    await db.run('DELETE FROM risk_history');
+    await db.run('DELETE FROM incidents');
+    console.log(`[Incidents] Queue cleared by ${req.user?.username || 'operator'} — ${count} incident(s) removed`);
+    return res.status(200).json({ success: true, message: `Cleared ${count} incident(s) from queue` });
+  } catch (err: any) {
+    console.error('[Incidents] Clear failed:', err.message);
+    return res.status(500).json({ success: false, error: `Failed to clear incidents: ${err.message}` });
+  }
 });
 
 /**

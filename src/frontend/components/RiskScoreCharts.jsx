@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Activity } from 'lucide-react';
 import Chart from 'chart.js/auto';
 
-export function RiskScoreCharts({ incident, riskHistory }) {
+export function RiskScoreCharts({ incident, riskHistory, days = 30, onDaysChange }) {
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
 
@@ -89,10 +89,12 @@ export function RiskScoreCharts({ incident, riskHistory }) {
             <h3 className="text-xs font-semibold uppercase tracking-wider font-sans">Risk Over Time</h3>
           </div>
           <select 
-            className="input-modern text-slate-400 text-[10px] px-2 py-1 rounded-lg focus:outline-none"
-            defaultValue="30"
-            disabled
+            className="input-modern text-slate-400 text-[10px] px-2 py-1 rounded-lg focus:outline-none cursor-pointer"
+            value={days}
+            onChange={(e) => onDaysChange && onDaysChange(Number(e.target.value))}
           >
+            <option value="7">7 Days</option>
+            <option value="14">14 Days</option>
             <option value="30">30 Days</option>
           </select>
         </div>
