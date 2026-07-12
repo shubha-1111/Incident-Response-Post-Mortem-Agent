@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
-  LayoutDashboard, ShieldAlert, Cpu, Database, Globe, Shield, Clock, 
-  FileText, BarChart2, Settings, ChevronLeft, ChevronRight, LogOut, User, Bell,
+  LayoutDashboard, ShieldAlert, Cpu, Globe, Shield, Clock, 
+  BarChart2, Settings, ChevronLeft, ChevronRight, LogOut, Bell,
   Layers, Wrench, TrendingUp
 } from 'lucide-react';
 
@@ -20,12 +20,9 @@ export function Sidebar({
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'incidents', label: 'Active Incidents', icon: ShieldAlert, badge: incidentCount },
     { id: 'investigation', label: 'Investigation', icon: Cpu },
-    { id: 'evidence', label: 'Evidence Vault', icon: Database },
     { id: 'intel', label: 'Threat Intelligence', icon: Globe },
     { id: 'mitre', label: 'MITRE ATT&CK', icon: Shield },
     { id: 'timeline', label: 'Timeline', icon: Clock },
-    { id: 'postmortems', label: 'Postmortems', icon: FileText },
-    { id: 'kb', label: 'Knowledge Base', icon: Database },
     { id: 'groups', label: 'Incident Groups', icon: Layers },
     { id: 'analytics', label: 'Model Analytics', icon: TrendingUp },
     { id: 'toolkit', label: 'Security Toolkit', icon: Wrench },
