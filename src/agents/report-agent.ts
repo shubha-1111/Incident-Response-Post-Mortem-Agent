@@ -29,10 +29,18 @@ export interface PostMortem {
   publish_url?: string;
 }
 
-const openai = new OpenAI({
-  baseURL: 'https://api.featherless.ai/v1',
-  apiKey: process.env.FEATHERLESS_API_KEY,
-});
+// Lazy singleton — avoids the SDK throwing at module import time when
+// FEATHERLESS_API_KEY is not set.
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({
+      baseURL: 'https://api.featherless.ai/v1',
+      apiKey: process.env.FEATHERLESS_API_KEY || 'featherless-not-configured',
+    });
+  }
+  return _openai;
+}
 
 const CRISPE_PROMPT = `C - Context: A security incident has been fully resolved. All evidence, root cause, and remediation data is provided.
 R - Role: You are a Senior Security Documentation Specialist writing an institutional post-mortem for future AI retrieval and human review.
@@ -106,7 +114,7 @@ export async function runReportAgent(
 
     let completion;
     try {
-      completion = await openai.chat.completions.create({
+      completion = await getOpenAI().chat.completions.create({
         model: 'meta-llama/Llama-3.3-70B-Instruct',
         temperature: 0,
         response_format: { type: 'json_object' },
