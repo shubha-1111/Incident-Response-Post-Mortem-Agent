@@ -23,6 +23,11 @@ ADMIN_USERNAME = "admin"
 CISA_KEV_FEED_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 JWT_EXPIRY = "3600"
 OTEL_SERVICE_NAME = "incident-response-agent"
+CMDB_API_URL = "http://mock-cmdb-api.local"
+ENKRYPT_RAYDER_URL = "https://rayder.enkryptai.com/api/v1/projects/CqGh5GzPt5UkI6hjdLCGzqq9KYltSAm6/rayder"
+ENKRYPT_SKILL_SENTINEL_URL = "https://sentinel.enkryptai.com/api/v1/projects/CqGh5GzPt5UkI6hjdLCGzqq9KYltSAm6/skill-sentinel"
+INCIDENT_SINK_URL = "http://mock-incident-sink.local"
+OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4317"
 
 [workflows]
 runButton = "Project"
