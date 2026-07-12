@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-  LayoutDashboard, ShieldAlert, Cpu, Globe, Shield, Clock, 
+  LayoutDashboard, ShieldAlert, Cpu, Globe, Shield,
   BarChart2, Settings, ChevronLeft, ChevronRight, LogOut, Bell,
   Layers, Wrench, TrendingUp
 } from 'lucide-react';
@@ -21,8 +21,6 @@ export function Sidebar({
     { id: 'incidents', label: 'Active Incidents', icon: ShieldAlert, badge: incidentCount },
     { id: 'investigation', label: 'Investigation', icon: Cpu },
     { id: 'intel', label: 'Threat Intelligence', icon: Globe },
-    { id: 'mitre', label: 'MITRE ATT&CK', icon: Shield },
-    { id: 'timeline', label: 'Timeline', icon: Clock },
     { id: 'groups', label: 'Incident Groups', icon: Layers },
     { id: 'analytics', label: 'Model Analytics', icon: TrendingUp },
     { id: 'toolkit', label: 'Security Toolkit', icon: Wrench },
