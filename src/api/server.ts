@@ -82,11 +82,65 @@ const PORT = process.env.PORT || 3001;
 
 /**
  * GET /health
- * Public health check with deep dependency status
+ * Liveness check — always returns 200 while the Node process is up and
+ * able to serve requests. Railway (and any other orchestrator) should point
+ * its deploy healthcheck here so a flaky downstream dependency (Qdrant,
+ * Cohere, etc.) never blocks a successful deployment.
+ *
+ * A background dependency snapshot is included in the response body for
+ * observability, and a console warning is emitted whenever any component is
+ * unhealthy so the issue is visible in logs without failing the deploy gate.
+ * Use GET /health/ready for a strict liveness+readiness check.
  */
 app.get('/health', async (req: Request, res: Response) => {
+  // Fire a non-blocking dependency check for logging / response body.
+  // We intentionally do NOT await this before deciding the HTTP status.
+  let report: any = getLastHealthReport();
+  if (!report) {
+    try {
+      report = await checkSystemHealth();
+    } catch (err: any) {
+      // Log but do not propagate — liveness must not depend on dep checks.
+      console.warn('[Health] Background dependency check threw:', err.message);
+      report = { timestamp: new Date().toISOString(), error: err.message };
+    }
+  }
+
+  // Warn in logs if any component is unhealthy so problems remain visible
+  // even though the HTTP response is always 200.
+  if (report && !('error' in report)) {
+    const unhealthy = ['sqlite', 'qdrant', 'otel', 'websocket', 'workflow'].filter(
+      (k) => (report as any)[k] !== 'healthy' && (report as any)[k] !== 'ready',
+    );
+    if (unhealthy.length > 0) {
+      console.warn(`[Health] Liveness OK, but degraded components: ${unhealthy.join(', ')}`);
+    }
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      status: 'ok',
+      timestamp: report?.timestamp ?? new Date().toISOString(),
+      version: '1.0.0',
+      note: 'Liveness check — process is up. See /health/ready for full dependency status.',
+      components: report ?? {},
+    },
+  });
+});
+
+/**
+ * GET /health/ready
+ * Readiness / deep-dependency check. Returns 200 only when ALL tracked
+ * components (SQLite, Qdrant, OTel, WebSocket, workflow) are healthy.
+ * Returns 503 if any dependency is down.
+ *
+ * Use this endpoint for monitoring dashboards and alerting rules —
+ * NOT as Railway's deploy healthcheck path (that should be /health).
+ */
+app.get('/health/ready', async (req: Request, res: Response) => {
   try {
-    const report = getLastHealthReport() ?? (await checkSystemHealth());
+    const report = await checkSystemHealth();
     const allHealthy = ['sqlite', 'qdrant', 'otel', 'websocket', 'workflow'].every(
       (k) => (report as any)[k] === 'healthy' || (report as any)[k] === 'ready',
     );
@@ -1060,7 +1114,7 @@ const frontendDist = path.join(__dirname, '../../src/frontend/dist');
 if (fs.existsSync(frontendDist)) {
   app.use(express.static(frontendDist));
   // SPA fallback: any GET that isn't an API route or a static asset falls through to index.html
-  app.get(/^\/(?!api\/|login$|dashboard$|ingest$|approve\/|reject\/|incident\/|health$).*/, (req: Request, res: Response) => {
+  app.get(/^\/(?!api\/|login$|dashboard$|ingest$|approve\/|reject\/|incident\/|health(\/.*)?).*/, (req: Request, res: Response) => {
     res.sendFile(path.join(frontendDist, 'index.html'));
   });
 } else {
