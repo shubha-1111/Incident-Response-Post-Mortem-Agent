@@ -21,24 +21,17 @@ export const COLLECTIONS = {
 
 /**
  * Bootstraps the required Qdrant collections with optimal distance metrics and indexes.
- * This runs on service initialization during our build sprint.
+ * Idempotent: only creates collections that don't already exist. Never deletes
+ * existing collections — data (learned postmortems, forensic events) must
+ * survive service restarts.
  */
 export async function initializeCollections(): Promise<void> {
   try {
     const existingCollections = await qdrantClient.getCollections();
     const names = existingCollections.collections.map((c) => c.name);
 
-    if (names.includes(COLLECTIONS.INCIDENT_KNOWLEDGE)) {
-      console.log(`[Qdrant] Deleting old collection: ${COLLECTIONS.INCIDENT_KNOWLEDGE}`);
-      await qdrantClient.deleteCollection(COLLECTIONS.INCIDENT_KNOWLEDGE);
-    }
-    if (names.includes(COLLECTIONS.FORENSIC_EVENTS)) {
-      console.log(`[Qdrant] Deleting old collection: ${COLLECTIONS.FORENSIC_EVENTS}`);
-      await qdrantClient.deleteCollection(COLLECTIONS.FORENSIC_EVENTS);
-    }
-
-    // 1. Initialize Incident Knowledge Base Collection
-    if (true) {
+    // 1. Initialize Incident Knowledge Base Collection (only if missing)
+    if (!names.includes(COLLECTIONS.INCIDENT_KNOWLEDGE)) {
       await qdrantClient.createCollection(COLLECTIONS.INCIDENT_KNOWLEDGE, {
         vectors: {
           size: 1024,
@@ -49,10 +42,12 @@ export async function initializeCollections(): Promise<void> {
         },
       });
       console.log(`[Qdrant] Created collection: ${COLLECTIONS.INCIDENT_KNOWLEDGE}`);
+    } else {
+      console.log(`[Qdrant] Collection already exists, keeping data: ${COLLECTIONS.INCIDENT_KNOWLEDGE}`);
     }
 
-    // 2. Initialize Forensic Events Collection
-    if (true) {
+    // 2. Initialize Forensic Events Collection (only if missing)
+    if (!names.includes(COLLECTIONS.FORENSIC_EVENTS)) {
       await qdrantClient.createCollection(COLLECTIONS.FORENSIC_EVENTS, {
         vectors: {
           size: 1024,
@@ -89,6 +84,8 @@ export async function initializeCollections(): Promise<void> {
       });
 
       console.log(`[Qdrant] Created collection and indexes for: ${COLLECTIONS.FORENSIC_EVENTS}`);
+    } else {
+      console.log(`[Qdrant] Collection already exists, keeping data: ${COLLECTIONS.FORENSIC_EVENTS}`);
     }
   } catch (error) {
     console.error('[Qdrant] Critical failure initializing vector collections:', error);
