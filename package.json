@@ -9,6 +9,7 @@
     "clean": "rm -rf dist src/frontend/dist",
     "build:backend": "tsc",
     "build:frontend": "cd src/frontend && npm install && npx vite build",
+    "build:frontend:only": "cd src/frontend && npx vite build",
     "build": "npm run clean && npm run build:backend && npm run build:frontend",
     "start": "node dist/index.js",
     "test": "TS_NODE_TRANSPILE_ONLY=1 node --loader ts-node/esm src/tests/integration.test.ts",
