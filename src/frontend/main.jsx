@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
-import Chart from 'chart.js/auto';
 import { 
   Terminal, Shield, AlertTriangle, CheckCircle, Activity, Globe, Cpu, RefreshCw, 
   LogIn, LogOut, ChevronRight, Check, X, FileText, BarChart2, Eye, ShieldAlert, 
@@ -217,7 +216,7 @@ function App() {
   const [activeNav, setActiveNav] = useState('dashboard');
 
   const [incidents, setIncidents] = useState([]);
-  const [selectedId, setSelectedId] = useState('INC-2026-DEMO-001');
+  const [selectedId, setSelectedId] = useState(null);
   const [selectedIncident, setSelectedIncident] = useState(null);
   
   const [middleTab, setMiddleTab] = useState('pipeline'); // 'pipeline' or 'postmortem'
@@ -361,7 +360,7 @@ function App() {
         const loaded = body.data || [];
         setIncidents(loaded);
         setIsConnected(true);
-        if (loaded.length > 0 && (!selectedId || selectedId === 'INC-2026-STUFF-002')) {
+        if (loaded.length > 0 && !selectedId) {
           setSelectedId(loaded[0].incidentId);
         }
       }
@@ -762,8 +761,7 @@ function App() {
   const triggerCorrelation = async (incidentId) => {
     if (!token || !incidentId) return;
     try {
-      await fetch(`${API_BASE}/api/incidents/${incidentId}/correlate`, {
-        method: 'POST',
+      await fetch(`${API_BASE}/api/incidents/${incidentId}/correlations`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
     } catch (err) {
@@ -1159,7 +1157,16 @@ function App() {
           </div>
         );
 
-      case 'intel':
+      case 'intel': {
+        const liveTechniques = (() => {
+          const raw = incident?.mitreTechniques || incident?.attackTechniques || [];
+          if (Array.isArray(raw) && raw.length > 0) return raw;
+          const fromEvidence = evidenceChain
+            .flatMap(e => e.payload?.mitreTechniques || e.payload?.techniques || [])
+            .filter(Boolean);
+          if (fromEvidence.length > 0) return [...new Set(fromEvidence)];
+          return [];
+        })();
         return (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-6">
@@ -1171,40 +1178,92 @@ function App() {
               />
             </div>
             <div className="lg:col-span-6 glass-panel p-6 rounded-[18px] h-fit">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 font-mono">MITRE ATT&CK Mapping matrix</h3>
-              <div className="grid grid-cols-3 gap-3">
-                {['T1110.004', 'T1068', 'T1041', 'T1059', 'T1562', 'T1078'].map((tech, idx) => (
-                  <div key={idx} className="bg-slate-900/40 border border-[var(--border-default)] p-3 rounded-[8px] text-center">
-                    <div className="text-[10px] text-cyan-400 font-mono font-bold">MITRE ATT&CK</div>
-                    <div className="text-xs font-bold text-white mt-1 font-mono">{tech}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'mitre':
-        return (
-          <div className="max-w-4xl mx-auto glass-panel p-6 rounded-[18px] space-y-4">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider border-b border-[var(--border-default)] pb-3">MITRE ATT&CK Mapping Details</h3>
-            <div className="space-y-4">
-              {[
-                { id: 'T1110.004', name: 'Brute Force: Credential Stuffing', desc: 'Adversaries may use credentials obtained from breach dumps or past credential harvesting campaigns to attempt login across many accounts.' },
-                { id: 'T1068', name: 'Exploitation for Privilege Escalation', desc: 'Adversaries may exploit software vulnerabilities in an attempt to elevate system privileges.' },
-                { id: 'T1041', name: 'Exfiltration Over Alternative Protocol', desc: 'Adversaries may steal data by sending it over a protocol other than standard ones.' }
-              ].map((tech) => (
-                <div key={tech.id} className="bg-slate-900/50 p-4 border border-[var(--border-default)] rounded-[12px]">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-white font-mono">{tech.id} — {tech.name}</span>
-                    <span className="text-[9px] bg-cyan-950/30 text-cyan-400 font-bold px-2 py-0.5 rounded border border-cyan-900/30">MAPPED</span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-2 font-sans leading-relaxed">{tech.desc}</p>
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 font-mono">MITRE ATT&CK Mapping Matrix</h3>
+              {liveTechniques.length > 0 ? (
+                <div className="grid grid-cols-3 gap-3">
+                  {liveTechniques.map((tech, idx) => (
+                    <div key={idx} className="bg-slate-900/40 border border-[var(--border-default)] p-3 rounded-[8px] text-center">
+                      <div className="text-[10px] text-cyan-400 font-mono font-bold">MITRE ATT&CK</div>
+                      <div className="text-xs font-bold text-white mt-1 font-mono">{typeof tech === 'string' ? tech : tech.id || tech.techniqueId}</div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <div className="text-center py-8">
+                  <div className="text-slate-600 text-[11px] font-mono uppercase tracking-wider">
+                    {selectedId ? 'No MITRE techniques mapped for this incident yet' : 'Select an incident to view MITRE mappings'}
+                  </div>
+                  {incident?.attackType && (
+                    <div className="mt-3 inline-block bg-cyan-950/30 text-cyan-400 text-[10px] font-mono px-3 py-1.5 rounded border border-cyan-900/30">
+                      Attack Type: {incident.attackType}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         );
+      }
+
+      case 'mitre': {
+        const mitreTechs = (() => {
+          const raw = incident?.mitreTechniques || incident?.attackTechniques || [];
+          if (Array.isArray(raw) && raw.length > 0) return raw;
+          const fromEvidence = evidenceChain
+            .flatMap(e => e.payload?.mitreTechniques || e.payload?.techniques || [])
+            .filter(Boolean);
+          return [...new Set(fromEvidence)];
+        })();
+        return (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <div className="glass-panel p-6 rounded-[18px] space-y-4">
+              <div className="flex items-center justify-between border-b border-[var(--border-default)] pb-3">
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">MITRE ATT&CK Mapping Details</h3>
+                {incident?.incidentId && (
+                  <span className="text-[9px] font-mono bg-blue-950/40 text-blue-300 px-2 py-0.5 rounded-full border border-blue-900/30">
+                    {incident.incidentId}
+                  </span>
+                )}
+              </div>
+              {incident?.attackType && (
+                <div className="flex items-center gap-3 p-3 bg-slate-900/50 rounded-[10px] border border-[var(--border-default)]">
+                  <span className="text-[10px] text-slate-400 font-mono">Detected Attack Class:</span>
+                  <span className="text-xs font-bold text-cyan-400 font-mono">{incident.attackType}</span>
+                  {incident.rootCauseHypothesis && (
+                    <span className="text-[10px] text-slate-400 font-sans ml-2 truncate">{incident.rootCauseHypothesis}</span>
+                  )}
+                </div>
+              )}
+              {mitreTechs.length > 0 ? (
+                <div className="space-y-3">
+                  {mitreTechs.map((tech, idx) => {
+                    const techId = typeof tech === 'string' ? tech : tech.id || tech.techniqueId;
+                    const techName = typeof tech === 'object' ? (tech.name || tech.techniqueName || '') : '';
+                    const techDesc = typeof tech === 'object' ? (tech.description || tech.desc || '') : '';
+                    return (
+                      <div key={idx} className="bg-slate-900/50 p-4 border border-[var(--border-default)] rounded-[12px]">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-bold text-white font-mono">{techId}{techName ? ` — ${techName}` : ''}</span>
+                          <span className="text-[9px] bg-cyan-950/30 text-cyan-400 font-bold px-2 py-0.5 rounded border border-cyan-900/30">MAPPED</span>
+                        </div>
+                        {techDesc && <p className="text-[11px] text-slate-400 mt-2 font-sans leading-relaxed">{techDesc}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="py-10 flex flex-col items-center text-center">
+                  <Shield className="w-8 h-8 text-slate-700 mb-3" />
+                  <p className="text-[11px] text-slate-500 font-mono uppercase tracking-wider">
+                    {selectedId ? 'No MITRE techniques mapped yet for this incident' : 'Select an active incident to view MITRE mappings'}
+                  </p>
+                  <p className="text-[10px] text-slate-600 font-sans mt-1">Techniques are automatically extracted by the AI analysis pipeline during incident triage.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
 
       case 'timeline':
         return (
@@ -1290,7 +1349,9 @@ function App() {
         );
       }
 
-      case 'kb':
+      case 'kb': {
+        const qdrantStatus = systemHealth?.qdrant ?? null;
+        const qdrantOnline = qdrantStatus === 'healthy' || qdrantStatus === 'ready' || qdrantStatus === 'online';
         return (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-12 card-panel p-5 space-y-2">
@@ -1303,21 +1364,47 @@ function App() {
             <div className="lg:col-span-8">
               <AIInsights incident={incident} />
             </div>
-            <div className="lg:col-span-4 glass-panel p-6 rounded-[18px]">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono mb-3">Qdrant Memory Status</h3>
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Collections:</span>
-                  <span className="font-bold text-white font-mono">2 collections</span>
+            <div className="lg:col-span-4 glass-panel p-6 rounded-[18px] space-y-4">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">Qdrant Memory Status</h3>
+              <div className="space-y-3 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-mono">Vector Store:</span>
+                  <span className={`font-bold font-mono flex items-center gap-1.5 ${qdrantOnline ? 'text-emerald-400' : qdrantStatus === null ? 'text-slate-500' : 'text-red-400'}`}>
+                    <span className={`inline-flex w-1.5 h-1.5 rounded-full ${qdrantOnline ? 'bg-emerald-400 animate-pulse' : qdrantStatus === null ? 'bg-slate-600' : 'bg-red-400'}`} />
+                    {qdrantStatus === null ? 'Loading…' : qdrantOnline ? 'ONLINE' : String(qdrantStatus).toUpperCase()}
+                  </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Embeddings:</span>
-                  <span className="font-bold text-white font-mono">Cohere (384-dim)</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-mono">Collections:</span>
+                  <span className="font-bold text-white font-mono">
+                    {qdrantOnline ? '2 active' : qdrantStatus === null ? '—' : 'Unavailable'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-mono">Embeddings:</span>
+                  <span className="font-bold text-white font-mono">Cohere (1024-dim)</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-mono">SQLite Store:</span>
+                  <span className={`font-bold font-mono ${systemHealth?.sqlite === 'healthy' ? 'text-emerald-400' : 'text-slate-400'}`}>
+                    {systemHealth?.sqlite ? String(systemHealth.sqlite).toUpperCase() : '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-mono">Workflow Engine:</span>
+                  <span className={`font-bold font-mono ${systemHealth?.workflow === 'ready' || systemHealth?.workflow === 'healthy' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {systemHealth?.workflow ? String(systemHealth.workflow).toUpperCase() : '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-mono">Incidents Tracked:</span>
+                  <span className="font-bold text-white font-mono">{dashboardStats?.total ?? incidents.length}</span>
                 </div>
               </div>
             </div>
           </div>
         );
+      }
 
       case 'reports':
         return (
