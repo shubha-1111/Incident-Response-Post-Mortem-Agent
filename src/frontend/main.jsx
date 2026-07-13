@@ -1434,7 +1434,7 @@ function App() {
       {/* CUSTOM LOG INGESTION DIALOG MODAL */}
       {showIngestModal && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="w-full max-w-xl glass rounded-2xl p-6 shadow-glass-lg space-y-5 animate-scale-in max-h-[90vh] overflow-y-auto terminal-scroll">
+          <div className="w-full max-w-xl glass-panel rounded-2xl p-6 shadow-2xl space-y-5 animate-scale-in max-h-[90vh] overflow-y-auto terminal-scroll">
             <div className="flex justify-between items-center border-b border-white/10 pb-4">
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 rounded-[6px] bg-slate-900 border border-[var(--border-default)] flex items-center justify-center shadow-inner">

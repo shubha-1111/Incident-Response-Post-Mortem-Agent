@@ -163,7 +163,10 @@ body {
   box-shadow: 0 0 10px rgba(59, 130, 246, 0.35), inset 0 0 8px rgba(59, 130, 246, 0.15);
 }
 
-/* Animations */
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -177,6 +180,54 @@ body {
 
 .animate-fadeInUp {
   animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-count-up {
+  animation: countUp 0.4s ease-out forwards;
 }
 
 @keyframes scanline {
@@ -264,6 +315,14 @@ body {
   background-clip: text;
 }
 
+/* gradient-text alias for title-gradient */
+.gradient-text {
+  background: linear-gradient(90deg, #3B82F6 0%, #93C5FD 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 .btn-approve-glow {
   background: transparent;
   border: 1.5px solid rgba(255, 255, 255, 0.35);
@@ -278,3 +337,63 @@ body {
   transform: translateY(-0.5px);
 }
 
+/* Recharts tooltip override to match dark theme */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: rgba(9, 14, 26, 0.95) !important;
+  border: 1px solid rgba(59, 130, 246, 0.25) !important;
+  border-radius: 8px !important;
+  font-family: var(--font-mono) !important;
+  font-size: 10px !important;
+}
+
+/* Sortable table header */
+.sort-header {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+}
+.sort-header:hover {
+  color: #93C5FD;
+}
+
+/* Incident card hover */
+.incident-card {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.incident-card:hover {
+  transform: translateX(2px);
+}
+
+/* Tooltip on hover  */
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(9, 14, 26, 0.95);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #93C5FD;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 100;
+}
+[data-tooltip] {
+  position: relative;
+}
+
+/* Loading skeleton shimmer */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
