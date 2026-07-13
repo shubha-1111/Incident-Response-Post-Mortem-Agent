@@ -80,6 +80,53 @@ For "markdown_report", write a comprehensive SRE-style post-mortem matching this
 - **MITRE ATT&CK Tags:** {Tags}`;
 
 /**
+ * Deterministic, non-LLM post-mortem fields used when the LLM provider (Featherless)
+ * is unreachable or misconfigured (e.g. missing FEATHERLESS_API_KEY). Keeps incidents
+ * moving to resolution instead of stalling in pending_human_review purely because the
+ * report-writing LLM call failed.
+ */
+function buildTemplatePostMortemFields(state: IncidentState) {
+  const rootCause = state.rootCauseHypothesis || 'unknown_pattern';
+  const remediationType = state.remediationAction?.actionType ?? 'none';
+  const title = `Post-Mortem for Incident ${state.incidentId} (${rootCause})`;
+  const evidenceSummary = state.evidenceChain?.length
+    ? `${state.evidenceChain.length} evidence item(s) collected during investigation.`
+    : 'No structured evidence was collected during investigation.';
+  const remediation = state.remediationAction
+    ? `Automated remediation action "${remediationType}" was applied. Justification: ${state.actionJustification || 'n/a'}.`
+    : 'No automated remediation action was applied for this incident.';
+
+  const markdown_report = `# SRE Post-Mortem: ${title}
+**Incident ID:** ${state.incidentId}
+**Autonomy Tier:** ${state.autonomyTier || 'unknown'}
+
+## 1. Executive Summary
+This report was generated automatically from structured incident state because the report-writing LLM was unavailable.
+
+## 2. Technical Root Cause Analysis (RCA)
+- **Primary Attack Vector:** ${rootCause}
+
+## 3. Remediation & Action Items
+- **Containment Action:** ${remediationType}
+- **Justification:** ${state.actionJustification || 'n/a'}
+
+## 4. Metadata & Learning Loop
+- **SOP Reference:** SOP-UNKNOWN
+- **Note:** Generated via template fallback (no LLM report available).`;
+
+  return {
+    title,
+    root_cause: rootCause,
+    symptoms: [] as string[],
+    evidence_summary: evidenceSummary,
+    remediation,
+    tags: ['template_fallback'] as string[],
+    sop_ref: 'SOP-UNKNOWN',
+    markdown_report,
+  };
+}
+
+/**
  * Generates structured post-mortems after incident resolution and indexes them in Qdrant.
  */
 export async function runReportAgent(
@@ -105,6 +152,7 @@ export async function runReportAgent(
     });
 
     let completion;
+    let usedTemplateFallback = false;
     try {
       completion = await openai.chat.completions.create({
         model: 'meta-llama/Llama-3.3-70B-Instruct',
@@ -127,49 +175,52 @@ export async function runReportAgent(
         ],
       });
     } catch (err: any) {
-      console.error('[Report Agent] LLM completion error:', err);
-      state.status = 'pending_human_review';
+      console.error('[Report Agent] LLM completion error, falling back to template post-mortem:', err.message);
+      usedTemplateFallback = true;
       eventBus.emit(IncidentEventType.STREAM_LOG, {
         incidentId: state.incidentId,
         timestamp: Date.now(),
-        level: 'critical',
-        message: `Report Error: LLM completion failed: ${err.message}`,
+        level: 'warn',
+        message: `Report Warning: LLM completion failed (${err.message}). Generating template-based post-mortem instead of blocking on human review.`,
         stepId: 'report-step'
       });
-      return { state, postMortem: null };
     }
 
-    // Step 2 — Record token usage
-    recordTokenUsage(
-      span,
-      completion.usage?.prompt_tokens ?? 0,
-      completion.usage?.completion_tokens ?? 0,
-      'report-agent'
-    );
+    // Step 2 — Record token usage (only if the LLM call actually ran)
+    if (completion) {
+      recordTokenUsage(
+        span,
+        completion.usage?.prompt_tokens ?? 0,
+        completion.usage?.completion_tokens ?? 0,
+        'report-agent'
+      );
+    }
 
-    // Step 3 — Parse response safely
-    const content = completion.choices[0]?.message?.content ?? '{}';
-    let raw;
-    try {
-      raw = JSON.parse(content);
-      eventBus.emit(IncidentEventType.STREAM_LOG, {
-        incidentId: state.incidentId,
-        timestamp: Date.now(),
-        level: 'info',
-        message: `Report: LLM completion parsed successfully (40% progress). Constructing structured post-mortem...`,
-        stepId: 'report-step'
-      });
-    } catch (err: any) {
-      console.error('[Report Agent] JSON parsing failure on LLM response:', err);
-      state.status = 'pending_human_review';
-      eventBus.emit(IncidentEventType.STREAM_LOG, {
-        incidentId: state.incidentId,
-        timestamp: Date.now(),
-        level: 'critical',
-        message: `Report Error: JSON parsing failure on LLM response: ${err.message}`,
-        stepId: 'report-step'
-      });
-      return { state, postMortem: null };
+    // Step 3 — Parse response safely, falling back to a deterministic template on any failure
+    let raw: any = buildTemplatePostMortemFields(state);
+    if (completion && !usedTemplateFallback) {
+      const content = completion.choices[0]?.message?.content ?? '{}';
+      try {
+        raw = JSON.parse(content);
+        eventBus.emit(IncidentEventType.STREAM_LOG, {
+          incidentId: state.incidentId,
+          timestamp: Date.now(),
+          level: 'info',
+          message: `Report: LLM completion parsed successfully (40% progress). Constructing structured post-mortem...`,
+          stepId: 'report-step'
+        });
+      } catch (err: any) {
+        console.error('[Report Agent] JSON parsing failure on LLM response, falling back to template post-mortem:', err.message);
+        usedTemplateFallback = true;
+        raw = buildTemplatePostMortemFields(state);
+        eventBus.emit(IncidentEventType.STREAM_LOG, {
+          incidentId: state.incidentId,
+          timestamp: Date.now(),
+          level: 'warn',
+          message: `Report Warning: JSON parsing failure on LLM response (${err.message}). Generating template-based post-mortem instead of blocking on human review.`,
+          stepId: 'report-step'
+        });
+      }
     }
 
     // Step 4 — Build full PostMortem object

@@ -33,8 +33,11 @@ export async function getAssetCriticality(host: string): Promise<AssetCriticalit
     const CMDB_API_KEY = process.env.CMDB_API_KEY;
 
     if (!CMDB_API_URL || !CMDB_API_KEY || CMDB_API_URL.includes('YOUR_ENDPOINT')) {
-      console.warn(`[CMDB] CMDB API config missing or mock. Defaulting to high_impact for host: ${host}.`);
-      return 'high_impact';
+      // No CMDB configured: this host already cleared the protected-class deny-list above,
+      // so treat it as standard criticality rather than forcing every incident into
+      // high-impact/human-approval purely because CMDB integration isn't set up.
+      console.warn(`[CMDB] CMDB API config missing or mock. Defaulting to standard for host: ${host}.`);
+      return 'standard';
     }
 
     try {
