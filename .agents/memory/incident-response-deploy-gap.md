@@ -1,15 +1,19 @@
 ---
 name: Incident-response agent deploy gap
-description: A hackathon-style Node/Express + separate Vite/React frontend repo shipped a Dockerfile that built and copied the frontend dist folder, but the Express server never mounted express.static for it — the UI was unreachable in any single-service deploy despite the build succeeding. (Note: a later session added the static-serving fix — always re-verify with a grep rather than assuming this repo still has the gap.)
-
+description: Recurring deploy/runtime gaps found in the Mastra + Qdrant + Enkrypt AI incident-response agent (Railway deploy). Check for these patterns in similarly-structured repos.
 ---
 
-Backend build succeeding and Dockerfile referencing a frontend dist path does not mean the server actually serves it. Grep for `express.static` (or the equivalent static-file mount for the framework in use) before assuming a documented Docker/deploy setup actually works end-to-end.
+## Frontend not served
+Dockerfile copied frontend dist but nothing served it in production. Check that the server actually mounts/serves the built static frontend, not just that the build step runs.
 
-**Why:** The build pipeline (`npm run build`) and Dockerfile both produced/copied `src/frontend/dist`, giving false confidence that deployment was wired up, but the route table had no static middleware or SPA fallback — every deploy would 404 on the UI.
+## Enkrypt AI has no "Skill Sentinel" / "Rayder" HTTP API
+Skill Sentinel is a separate CLI tool (agent-skill-package scanner); Rayder is a browser-extension-only red-teaming tool. Neither has a public REST endpoint. The real public API is Guardrails Detect: `POST https://api.enkryptai.com/guardrails/detect` with an `apikey` header and a `detectors`/`summary` request-response shape. Any code hitting `sentinel.enkryptai.com` or `rayder.enkryptai.com` will 404 regardless of API key — the fix is migrating the call site, not just adding auth.
 
-**How to apply:** When a repo has a separate frontend build folder referenced by a Dockerfile/deploy config, verify the backend actually serves it (static middleware + SPA fallback route registered after API routes) before treating "the build works" as "the deploy works".
+## Qdrant collections must be created idempotently
+`initializeCollections()`-style bootstrap code must check `getCollections()` and only create missing collections. Deleting + recreating on every boot silently wipes all accumulated vector data (postmortems, forensic embeddings) on every restart — a very easy mistake that looks like "RAG never learns" rather than "the DB gets wiped."
 
-## Follow-up: env-var hard-requirements can be scattered across config files
+## Multiple sessions/agents editing the same repo via GitHub diverge fast
+When a Repl and a separately-deployed session (e.g. one driving a Railway deploy) both commit to the same GitHub repo independently, `git push` gets rejected and histories diverge quickly (seen: 28 commits apart after one afternoon). Before assuming your local fix is the only one, `git fetch && git log origin/main --oneline` to check whether the other session already fixed (or independently reached) the same thing, then merge deliberately instead of force-pushing over their work.
 
-In this same repo, several config modules (`src/config/qdrant.ts`, and `openai` client construction inside `src/agents/rca-agent.ts`) throw at **import time** if their env var is missing — this crashes the whole server on boot, not just the feature that needs the credential. Other modules in the same codebase (`src/config/enkrypt.ts`, `cohere-ai` client) degrade gracefully instead. Don't assume all "required" env vars listed in a README behave the same way — grep for `throw new Error` / `new OpenAI(` / similar hard client constructors at module scope to find the ones that actually block startup, and request only those secrets first to unblock booting quickly.
+## Fail-closed security defaults are a product decision, not a bug
+Code that defaults to the safe/restrictive path when a dependency (CMDB, auth service, etc.) is unreachable or unconfigured is often an intentional fail-closed security posture, not an oversight. Flipping such a default to fail-open (e.g. "unknown asset criticality → treat as low-risk / auto-remediate" instead of "→ require human approval") measurably changes the security posture of the system. Get explicit user sign-off before changing it, even if it's framed as "just get things unstuck."
