@@ -19,10 +19,18 @@ const groqProvider = createGroq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-const openai = new OpenAI({
-  baseURL: 'https://api.featherless.ai/v1',
-  apiKey: process.env.FEATHERLESS_API_KEY,
-});
+// Lazy singleton — avoids the SDK throwing at module import time when
+// FEATHERLESS_API_KEY is not set.
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({
+      baseURL: 'https://api.featherless.ai/v1',
+      apiKey: process.env.FEATHERLESS_API_KEY || 'featherless-not-configured',
+    });
+  }
+  return _openai;
+}
 
 const CRISPE_PROMPT = `C - Context: A confirmed root cause has been identified for a security incident. Asset criticality has been pre-fetched from CMDB. You must select the safest, most targeted remediation action.
 R - Role: You are a Senior Security Incident Responder specializing in production infrastructure protection. You minimize blast radius above all else.
@@ -92,7 +100,7 @@ export async function runRemediationAgent(
     // Step 2 — Call Mastra Remediation Agent
     let completion;
     try {
-      const chatCompletion = await openai.chat.completions.create({
+      const chatCompletion = await getOpenAI().chat.completions.create({
         model: 'meta-llama/Llama-3.3-70B-Instruct',
         messages: [
           { role: 'system', content: CRISPE_PROMPT },

@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
-import Chart from 'chart.js/auto';
 import { 
   Terminal, Shield, AlertTriangle, CheckCircle, Activity, Globe, Cpu, RefreshCw, 
   LogIn, LogOut, ChevronRight, Check, X, FileText, BarChart2, Eye, ShieldAlert, 
   Workflow, GitPullRequest, ArrowRight, Database, Lock, Clock, ExternalLink,
-  PanelLeftClose, PanelLeftOpen, Plus, User, MessageSquare
+  PanelLeftClose, PanelLeftOpen, Plus, User, MessageSquare, Trash2
 } from 'lucide-react';
 
 import { Sidebar } from './components/Sidebar';
@@ -217,7 +216,7 @@ function App() {
   const [activeNav, setActiveNav] = useState('dashboard');
 
   const [incidents, setIncidents] = useState([]);
-  const [selectedId, setSelectedId] = useState('INC-2026-DEMO-001');
+  const [selectedId, setSelectedId] = useState(null);
   const [selectedIncident, setSelectedIncident] = useState(null);
   
   const [middleTab, setMiddleTab] = useState('pipeline'); // 'pipeline' or 'postmortem'
@@ -231,6 +230,7 @@ function App() {
   const [riskHistory, setRiskHistory] = useState([]);
   const [chartData, setChartData] = useState(null);
   const [dashboardCharts, setDashboardCharts] = useState(null);
+  const [riskDays, setRiskDays] = useState(30);
 
   
   // Custom log ingestion modal state
@@ -360,7 +360,7 @@ function App() {
         const loaded = body.data || [];
         setIncidents(loaded);
         setIsConnected(true);
-        if (loaded.length > 0 && (!selectedId || selectedId === 'INC-2026-STUFF-002')) {
+        if (loaded.length > 0 && !selectedId) {
           setSelectedId(loaded[0].incidentId);
         }
       }
@@ -385,10 +385,10 @@ function App() {
     }
   };
 
-  const fetchRiskHistory = async (incidentId) => {
+  const fetchRiskHistory = async (incidentId, days = riskDays) => {
     if (!token) return;
     try {
-      const params = new URLSearchParams({ limit: '30' });
+      const params = new URLSearchParams({ limit: String(days) });
       if (incidentId) params.set('incidentId', incidentId);
       const res = await fetch(`${API_BASE}/api/dashboard/risk-history?${params}`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -592,7 +592,7 @@ function App() {
   }, [liveLogs]);
 
 
-  // Poll summaries every 4 seconds
+  // Poll summaries every 15 seconds (reduced from 4s to avoid rate limit exhaustion)
   useEffect(() => {
     if (!token) return;
     fetchDashboard();
@@ -606,16 +606,16 @@ function App() {
       fetchSystemHealth();
       fetchThreatIntelStats();
       fetchDashboardCharts();
-    }, 4000);
+    }, 15000);
     return () => clearInterval(interval);
   }, [token]);
 
-  // Poll selected incident details every 2 seconds if not fully resolved/denied
+  // Poll selected incident details every 5 seconds if not fully resolved/denied
   useEffect(() => {
     if (!token || !selectedId) return;
     setLiveLogs([]);
     fetchIncidentDetails(selectedId);
-    fetchRiskHistory(selectedId);
+    fetchRiskHistory(selectedId, riskDays);
     fetchIncidentCharts(selectedId);
     
     const interval = setInterval(() => {
@@ -624,9 +624,9 @@ function App() {
         return;
       }
       fetchIncidentDetails(selectedId);
-      fetchRiskHistory(selectedId);
+      fetchRiskHistory(selectedId, riskDays);
       fetchIncidentCharts(selectedId);
-    }, 2000);
+    }, 5000);
 
     return () => clearInterval(interval);
   }, [selectedId, token, incident?.status]);
@@ -731,12 +731,37 @@ function App() {
     }
   };
 
+  // Clear all incidents from the queue
+  const handleClearIncidents = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/incidents`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const body = await res.json();
+      if (body.success) {
+        setIncidents([]);
+        setSelectedId('');
+        setSelectedIncident(null);
+        setSteps([]);
+        setTimeline([]);
+        setRiskHistory([]);
+        setChartData(null);
+        setLiveLogs([]);
+      } else {
+        console.error('Clear incidents failed:', body.error);
+      }
+    } catch (err) {
+      console.error('Clear incidents error:', err.message);
+    }
+  };
+
   // Trigger a fresh correlation analysis for the selected incident
   const triggerCorrelation = async (incidentId) => {
     if (!token || !incidentId) return;
     try {
-      await fetch(`${API_BASE}/api/incidents/${incidentId}/correlate`, {
-        method: 'POST',
+      await fetch(`${API_BASE}/api/incidents/${incidentId}/correlations`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
     } catch (err) {
@@ -937,10 +962,13 @@ function App() {
                 setSelectedId={setSelectedId}
                 setSelectedIncident={setSelectedIncident}
                 setShowIngestModal={setShowIngestModal}
+                onClearQueue={handleClearIncidents}
               />
               <RiskScoreCharts 
                 incident={incident}
                 riskHistory={riskHistory}
+                days={riskDays}
+                onDaysChange={(d) => { setRiskDays(d); fetchRiskHistory(selectedId, d); }}
               />
               <div className="glass-panel glow-hover rounded-[12px] p-5 space-y-3 shadow-[0_4px_20px_rgba(0,0,0,0.4)] animate-fadeInUp">
                 <div className="flex items-center justify-between border-b border-[var(--border-default)] pb-2 select-none">
@@ -981,7 +1009,20 @@ function App() {
                   MarkdownRenderer={MarkdownRenderer}
                 />
               </div>
-              <ThreatScoreGauge score={incident?.threatScore} />
+              {/* Compact threat metrics strip (replaces static gauge) */}
+              <div className="glass-panel rounded-[12px] px-5 py-3 grid grid-cols-4 gap-3 shadow-[0_4px_20px_rgba(0,0,0,0.4)] animate-fadeInUp select-none">
+                {[
+                  { label: 'Threat Score', value: incident?.threatScore != null ? `${incident.threatScore}/100` : '—', color: (incident?.threatScore ?? 0) >= 80 ? 'text-rose-400' : (incident?.threatScore ?? 0) >= 40 ? 'text-amber-400' : 'text-blue-300' },
+                  { label: 'Confidence', value: incident?.confidenceScore != null ? `${Math.round(incident.confidenceScore * 100)}%` : '—', color: 'text-emerald-400' },
+                  { label: 'Autonomy', value: incident?.autonomyTier || 'L2_HITL', color: 'text-violet-400' },
+                  { label: 'Attack Type', value: incident?.attackType || '—', color: 'text-cyan-400' },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="text-center">
+                    <div className={`text-xs font-bold font-mono truncate ${color}`}>{value}</div>
+                    <div className="text-[9px] text-slate-500 uppercase tracking-wide mt-0.5">{label}</div>
+                  </div>
+                ))}
+              </div>
               <div className="glass-panel glow-hover rounded-[12px] p-5 space-y-3 shadow-[0_4px_20px_rgba(0,0,0,0.4)] animate-fadeInUp">
                 <div className="flex items-center justify-between border-b border-[var(--border-default)] pb-2 select-none">
                   <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
@@ -1028,6 +1069,7 @@ function App() {
                 setSelectedId={setSelectedId}
                 setSelectedIncident={setSelectedIncident}
                 setShowIngestModal={setShowIngestModal}
+                onClearQueue={handleClearIncidents}
               />
             </div>
             <div className="lg:col-span-8">
@@ -1115,7 +1157,16 @@ function App() {
           </div>
         );
 
-      case 'intel':
+      case 'intel': {
+        const liveTechniques = (() => {
+          const raw = incident?.mitreTechniques || incident?.attackTechniques || [];
+          if (Array.isArray(raw) && raw.length > 0) return raw;
+          const fromEvidence = evidenceChain
+            .flatMap(e => e.payload?.mitreTechniques || e.payload?.techniques || [])
+            .filter(Boolean);
+          if (fromEvidence.length > 0) return [...new Set(fromEvidence)];
+          return [];
+        })();
         return (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-6">
@@ -1127,40 +1178,92 @@ function App() {
               />
             </div>
             <div className="lg:col-span-6 glass-panel p-6 rounded-[18px] h-fit">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 font-mono">MITRE ATT&CK Mapping matrix</h3>
-              <div className="grid grid-cols-3 gap-3">
-                {['T1110.004', 'T1068', 'T1041', 'T1059', 'T1562', 'T1078'].map((tech, idx) => (
-                  <div key={idx} className="bg-slate-900/40 border border-[var(--border-default)] p-3 rounded-[8px] text-center">
-                    <div className="text-[10px] text-cyan-400 font-mono font-bold">MITRE ATT&CK</div>
-                    <div className="text-xs font-bold text-white mt-1 font-mono">{tech}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'mitre':
-        return (
-          <div className="max-w-4xl mx-auto glass-panel p-6 rounded-[18px] space-y-4">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider border-b border-[var(--border-default)] pb-3">MITRE ATT&CK Mapping Details</h3>
-            <div className="space-y-4">
-              {[
-                { id: 'T1110.004', name: 'Brute Force: Credential Stuffing', desc: 'Adversaries may use credentials obtained from breach dumps or past credential harvesting campaigns to attempt login across many accounts.' },
-                { id: 'T1068', name: 'Exploitation for Privilege Escalation', desc: 'Adversaries may exploit software vulnerabilities in an attempt to elevate system privileges.' },
-                { id: 'T1041', name: 'Exfiltration Over Alternative Protocol', desc: 'Adversaries may steal data by sending it over a protocol other than standard ones.' }
-              ].map((tech) => (
-                <div key={tech.id} className="bg-slate-900/50 p-4 border border-[var(--border-default)] rounded-[12px]">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-white font-mono">{tech.id} — {tech.name}</span>
-                    <span className="text-[9px] bg-cyan-950/30 text-cyan-400 font-bold px-2 py-0.5 rounded border border-cyan-900/30">MAPPED</span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-2 font-sans leading-relaxed">{tech.desc}</p>
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 font-mono">MITRE ATT&CK Mapping Matrix</h3>
+              {liveTechniques.length > 0 ? (
+                <div className="grid grid-cols-3 gap-3">
+                  {liveTechniques.map((tech, idx) => (
+                    <div key={idx} className="bg-slate-900/40 border border-[var(--border-default)] p-3 rounded-[8px] text-center">
+                      <div className="text-[10px] text-cyan-400 font-mono font-bold">MITRE ATT&CK</div>
+                      <div className="text-xs font-bold text-white mt-1 font-mono">{typeof tech === 'string' ? tech : tech.id || tech.techniqueId}</div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <div className="text-center py-8">
+                  <div className="text-slate-600 text-[11px] font-mono uppercase tracking-wider">
+                    {selectedId ? 'No MITRE techniques mapped for this incident yet' : 'Select an incident to view MITRE mappings'}
+                  </div>
+                  {incident?.attackType && (
+                    <div className="mt-3 inline-block bg-cyan-950/30 text-cyan-400 text-[10px] font-mono px-3 py-1.5 rounded border border-cyan-900/30">
+                      Attack Type: {incident.attackType}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         );
+      }
+
+      case 'mitre': {
+        const mitreTechs = (() => {
+          const raw = incident?.mitreTechniques || incident?.attackTechniques || [];
+          if (Array.isArray(raw) && raw.length > 0) return raw;
+          const fromEvidence = evidenceChain
+            .flatMap(e => e.payload?.mitreTechniques || e.payload?.techniques || [])
+            .filter(Boolean);
+          return [...new Set(fromEvidence)];
+        })();
+        return (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <div className="glass-panel p-6 rounded-[18px] space-y-4">
+              <div className="flex items-center justify-between border-b border-[var(--border-default)] pb-3">
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">MITRE ATT&CK Mapping Details</h3>
+                {incident?.incidentId && (
+                  <span className="text-[9px] font-mono bg-blue-950/40 text-blue-300 px-2 py-0.5 rounded-full border border-blue-900/30">
+                    {incident.incidentId}
+                  </span>
+                )}
+              </div>
+              {incident?.attackType && (
+                <div className="flex items-center gap-3 p-3 bg-slate-900/50 rounded-[10px] border border-[var(--border-default)]">
+                  <span className="text-[10px] text-slate-400 font-mono">Detected Attack Class:</span>
+                  <span className="text-xs font-bold text-cyan-400 font-mono">{incident.attackType}</span>
+                  {incident.rootCauseHypothesis && (
+                    <span className="text-[10px] text-slate-400 font-sans ml-2 truncate">{incident.rootCauseHypothesis}</span>
+                  )}
+                </div>
+              )}
+              {mitreTechs.length > 0 ? (
+                <div className="space-y-3">
+                  {mitreTechs.map((tech, idx) => {
+                    const techId = typeof tech === 'string' ? tech : tech.id || tech.techniqueId;
+                    const techName = typeof tech === 'object' ? (tech.name || tech.techniqueName || '') : '';
+                    const techDesc = typeof tech === 'object' ? (tech.description || tech.desc || '') : '';
+                    return (
+                      <div key={idx} className="bg-slate-900/50 p-4 border border-[var(--border-default)] rounded-[12px]">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-bold text-white font-mono">{techId}{techName ? ` — ${techName}` : ''}</span>
+                          <span className="text-[9px] bg-cyan-950/30 text-cyan-400 font-bold px-2 py-0.5 rounded border border-cyan-900/30">MAPPED</span>
+                        </div>
+                        {techDesc && <p className="text-[11px] text-slate-400 mt-2 font-sans leading-relaxed">{techDesc}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="py-10 flex flex-col items-center text-center">
+                  <Shield className="w-8 h-8 text-slate-700 mb-3" />
+                  <p className="text-[11px] text-slate-500 font-mono uppercase tracking-wider">
+                    {selectedId ? 'No MITRE techniques mapped yet for this incident' : 'Select an active incident to view MITRE mappings'}
+                  </p>
+                  <p className="text-[10px] text-slate-600 font-sans mt-1">Techniques are automatically extracted by the AI analysis pipeline during incident triage.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
 
       case 'timeline':
         return (
@@ -1169,26 +1272,86 @@ function App() {
           </div>
         );
 
-      case 'postmortems':
+      case 'postmortems': {
+        const resolvedIncidents = incidents.filter(i => ['resolved', 'reported'].includes(i.status));
         return (
-          <div className="max-w-5xl mx-auto h-[784px]">
-            <ExecutionPipeline 
-              middleTab="postmortem"
-              setMiddleTab={setMiddleTab}
-              status={status}
-              incident={incident}
-              steps={steps}
-              getTierStatus={getTierStatus}
-              handleApprove={handleApprove}
-              handleReject={handleReject}
-              getPostmortemProgress={getPostmortemProgress}
-              liveLogs={liveLogs}
-              MarkdownRenderer={MarkdownRenderer}
-            />
+          <div className="max-w-5xl mx-auto space-y-4">
+            {/* Header row */}
+            <div className="glass-panel rounded-[12px] p-4 flex items-center justify-between select-none">
+              <div className="flex items-center space-x-3">
+                <FileText className="w-4 h-4 text-purple-400" />
+                <span className="text-xs font-bold text-white uppercase tracking-wider font-mono">SRE Post-Mortem Reports</span>
+                <span className="text-[9px] bg-purple-950/40 text-purple-300 px-2 py-0.5 rounded-full border border-purple-900/30 font-mono">
+                  {resolvedIncidents.length} COMPLETED
+                </span>
+              </div>
+            </div>
+
+            {resolvedIncidents.length === 0 ? (
+              <div className="glass-panel rounded-[12px] p-12 flex flex-col items-center justify-center text-center">
+                <RefreshCw className="w-8 h-8 text-slate-600 mb-3" />
+                <p className="text-xs text-slate-500 font-mono uppercase tracking-wider">No completed post-mortems yet</p>
+                <p className="text-[11px] text-slate-600 font-sans mt-2">Ingest an incident and let the pipeline complete to generate a post-mortem report.</p>
+              </div>
+            ) : (
+              <>
+                {/* Incident switcher — only shown when multiple resolved incidents exist */}
+                {resolvedIncidents.length > 1 && (
+                  <div className="glass-panel rounded-[12px] p-4 space-y-2 select-none">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Select Incident</span>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {resolvedIncidents.map(inc => (
+                        <button
+                          key={inc.incidentId}
+                          onClick={() => { setSelectedId(inc.incidentId); setSelectedIncident(null); }}
+                          className={`px-3 py-1.5 rounded-[6px] text-[10px] font-mono font-bold border transition-all ${
+                            selectedId === inc.incidentId
+                              ? 'bg-purple-950/60 text-purple-300 border-purple-700/40'
+                              : 'bg-slate-900/40 text-slate-400 border-slate-800 hover:border-slate-600 hover:text-slate-300'
+                          }`}
+                        >
+                          {inc.incidentId}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* If selected incident isn't resolved, switch to first resolved one automatically */}
+                {!['resolved', 'reported'].includes(status) && resolvedIncidents.length > 0 && (() => {
+                  // Side-effect: switch selection to first resolved incident
+                  const first = resolvedIncidents[0];
+                  if (first.incidentId !== selectedId) {
+                    setTimeout(() => { setSelectedId(first.incidentId); setSelectedIncident(null); }, 0);
+                  }
+                  return null;
+                })()}
+
+                {/* Post-mortem viewer */}
+                <div className="h-[700px]">
+                  <ExecutionPipeline 
+                    middleTab="postmortem"
+                    setMiddleTab={setMiddleTab}
+                    status={status}
+                    incident={incident}
+                    steps={steps}
+                    getTierStatus={getTierStatus}
+                    handleApprove={handleApprove}
+                    handleReject={handleReject}
+                    getPostmortemProgress={getPostmortemProgress}
+                    liveLogs={liveLogs}
+                    MarkdownRenderer={MarkdownRenderer}
+                  />
+                </div>
+              </>
+            )}
           </div>
         );
+      }
 
-      case 'kb':
+      case 'kb': {
+        const qdrantStatus = systemHealth?.qdrant ?? null;
+        const qdrantOnline = qdrantStatus === 'healthy' || qdrantStatus === 'ready' || qdrantStatus === 'online';
         return (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-12 card-panel p-5 space-y-2">
@@ -1201,21 +1364,47 @@ function App() {
             <div className="lg:col-span-8">
               <AIInsights incident={incident} />
             </div>
-            <div className="lg:col-span-4 glass-panel p-6 rounded-[18px]">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono mb-3">Qdrant Memory Status</h3>
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Collections:</span>
-                  <span className="font-bold text-white font-mono">2 collections</span>
+            <div className="lg:col-span-4 glass-panel p-6 rounded-[18px] space-y-4">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">Qdrant Memory Status</h3>
+              <div className="space-y-3 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-mono">Vector Store:</span>
+                  <span className={`font-bold font-mono flex items-center gap-1.5 ${qdrantOnline ? 'text-emerald-400' : qdrantStatus === null ? 'text-slate-500' : 'text-red-400'}`}>
+                    <span className={`inline-flex w-1.5 h-1.5 rounded-full ${qdrantOnline ? 'bg-emerald-400 animate-pulse' : qdrantStatus === null ? 'bg-slate-600' : 'bg-red-400'}`} />
+                    {qdrantStatus === null ? 'Loading…' : qdrantOnline ? 'ONLINE' : String(qdrantStatus).toUpperCase()}
+                  </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Embeddings:</span>
-                  <span className="font-bold text-white font-mono">Cohere (384-dim)</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-mono">Collections:</span>
+                  <span className="font-bold text-white font-mono">
+                    {qdrantOnline ? '2 active' : qdrantStatus === null ? '—' : 'Unavailable'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-mono">Embeddings:</span>
+                  <span className="font-bold text-white font-mono">Cohere (1024-dim)</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-mono">SQLite Store:</span>
+                  <span className={`font-bold font-mono ${systemHealth?.sqlite === 'healthy' ? 'text-emerald-400' : 'text-slate-400'}`}>
+                    {systemHealth?.sqlite ? String(systemHealth.sqlite).toUpperCase() : '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-mono">Workflow Engine:</span>
+                  <span className={`font-bold font-mono ${systemHealth?.workflow === 'ready' || systemHealth?.workflow === 'healthy' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {systemHealth?.workflow ? String(systemHealth.workflow).toUpperCase() : '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-mono">Incidents Tracked:</span>
+                  <span className="font-bold text-white font-mono">{dashboardStats?.total ?? incidents.length}</span>
                 </div>
               </div>
             </div>
           </div>
         );
+      }
 
       case 'reports':
         return (
@@ -1239,6 +1428,8 @@ function App() {
               <RiskScoreCharts 
                 incident={incident}
                 riskHistory={riskHistory}
+                days={riskDays}
+                onDaysChange={(d) => { setRiskDays(d); fetchRiskHistory(selectedId, d); }}
               />
             </div>
             <div className="lg:col-span-12">
@@ -1330,7 +1521,7 @@ function App() {
       {/* CUSTOM LOG INGESTION DIALOG MODAL */}
       {showIngestModal && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="w-full max-w-xl glass rounded-2xl p-6 shadow-glass-lg space-y-5 animate-scale-in max-h-[90vh] overflow-y-auto terminal-scroll">
+          <div className="w-full max-w-xl glass-panel rounded-2xl p-6 shadow-2xl space-y-5 animate-scale-in max-h-[90vh] overflow-y-auto terminal-scroll">
             <div className="flex justify-between items-center border-b border-white/10 pb-4">
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 rounded-[6px] bg-slate-900 border border-[var(--border-default)] flex items-center justify-center shadow-inner">

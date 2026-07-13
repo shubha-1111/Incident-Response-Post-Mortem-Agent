@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ShieldAlert, Plus, MessageSquare } from 'lucide-react';
+import { ShieldAlert, Plus, Trash2 } from 'lucide-react';
 import { GroupedIncidentList } from './GroupedIncidentList';
 import { MultiSelectFilter } from './MultiSelectFilter';
 
@@ -8,13 +8,26 @@ export function ActiveIncidents({
   selectedId, 
   setSelectedId, 
   setSelectedIncident, 
-  setShowIngestModal 
+  setShowIngestModal,
+  onClearQueue
 }) {
   const [attackTypeFilter, setAttackTypeFilter] = useState([]);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   const handleSelect = (incidentId) => {
     setSelectedId(incidentId);
     setSelectedIncident(null);
+  };
+
+  const handleClearClick = () => {
+    if (confirmClear) {
+      onClearQueue && onClearQueue();
+      setConfirmClear(false);
+    } else {
+      setConfirmClear(true);
+      // Auto-cancel confirmation after 3s
+      setTimeout(() => setConfirmClear(false), 3000);
+    }
   };
 
   const filteredIncidents = useMemo(() => {
@@ -32,13 +45,29 @@ export function ActiveIncidents({
           </div>
           <h2 className="text-xs font-semibold uppercase tracking-wider font-sans">Active Incidents</h2>
         </div>
-        <button 
-          onClick={() => setShowIngestModal(true)}
-          className="btn-approve-glow flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold select-none cursor-pointer"
-        >
-          <Plus className="w-3 h-3" />
-          <span>Ingest</span>
-        </button>
+        <div className="flex items-center space-x-2">
+          {incidents.length > 0 && onClearQueue && (
+            <button 
+              onClick={handleClearClick}
+              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold select-none cursor-pointer transition-all border ${
+                confirmClear 
+                  ? 'bg-red-950/60 border-red-700/60 text-red-400 hover:bg-red-900/60' 
+                  : 'bg-slate-900 border-[var(--border-default)] text-slate-400 hover:text-red-400 hover:border-red-800/40'
+              }`}
+              title="Clear all incidents from the queue"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span>{confirmClear ? 'Confirm?' : 'Clear'}</span>
+            </button>
+          )}
+          <button 
+            onClick={() => setShowIngestModal(true)}
+            className="btn-approve-glow flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold select-none cursor-pointer"
+          >
+            <Plus className="w-3 h-3" />
+            <span>Ingest</span>
+          </button>
+        </div>
       </div>
 
       <div className="mb-3">

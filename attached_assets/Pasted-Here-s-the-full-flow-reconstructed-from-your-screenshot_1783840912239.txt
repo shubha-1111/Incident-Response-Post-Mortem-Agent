@@ -1,0 +1,56 @@
+Here's the full flow reconstructed from your screenshots, in order, so you can pick up where the agent left off.
+
+## What happened (root cause)
+
+The agent was debugging a `401 invalid API key` error you reported. It traced it to two related bugs in `src/services/featherless-service.ts`:
+
+1. **Raw `process.env` reads instead of a proper env-reading helper.** The Featherless service singleton was reading `process.env.FEATHERLESS_API_KEY` directly. In Replit's environment, this raw read wasn't returning the clean secret value — the agent's own diagnosis calls it: *"the singleton reads `process.env.FEATHERLESS_API_KEY` raw... doesn't start with the expected prefix → falls into Groq fallback which also reads `process.env.GROQ_API_KEY` raw... same problem → 401."*
+2. **A cached singleton.** Even after fixing the read, the module-level `featherlessService` singleton had already cached the bad key in memory, so a rebuild alone wouldn't fix it — it needed to be explicitly reset.
+
+The fix: replace `process.env.X` reads with a `readEnv('X')` helper call (which apparently reads secrets correctly in this environment), reset the singleton, rebuild, and restart.
+
+## Step-by-step flow the agent followed
+
+1. **Diagnosed the source** — searched the codebase for `model|completion|chat`, `report|threat.intel|Fea...`, `Featherless threat-inte...` to find where the 401 was actually being thrown (in the threat-intel/report pipeline).
+2. **Opened the relevant files**: `featherless-service.ts` and `incident-workflow.ts`.
+3. **Found both bugs** (described above) by reading how env vars were being accessed.
+4. **Edited `featherless-service.ts` three times** — changing all `process.env.*` reads to `readEnv('...')`. The one diff visible in your screenshot:
+
+```ts
+// before
+const apiKey = process.env.FEATHERLESS_API_KEY || '';
+
+// after
+const apiKey = readEnv('FEATHERLESS_API_KEY') || '';
+```
+
+   This same pattern was applied to the other `process.env` reads in the file (it mentions "three" — likely `FEATHERLESS_API_KEY` and `GROQ_API_KEY` in more than one place, e.g. constructor + fallback logic).
+5. **Reset the singleton** — since `featherlessService` was cached with the bad key, it had to be cleared/reset (not just rebuilt) so a fresh instance would pick up the corrected `readEnv()` call.
+6. **Rebuilt the backend**:
+   ```
+   npm run build:backend 2>&1 | tail -6
+   ```
+   (this runs `tsc`)
+7. **Restarted the workflow** ("Start application").
+8. **Committed the fix**:
+   ```
+   git add -A && git commit -m "Fix: apply readEnv to featherless-service (FEATHERLESS_API_KEY + GROQ_API_KEY both read raw prefix → 401)"
+   ```
+   Result: `[main 398546b]` — 2 files changed, 24 insertions(+), 26 deletions(-).
+9. **Verified** by checking logs / waiting on the pipeline to confirm no more 401s.
+10. You then asked it to **push to GitHub** — this is where it hit the daily quota limit before completing the push.
+
+## What's left to do (pick up here)
+
+Since the commit (`398546b`) was already made locally but **not pushed**, you just need to:
+
+```bash
+git push origin main
+```
+
+Then verify:
+- Confirm `featherless-service.ts` has all `process.env.FEATHERLESS_API_KEY` / `process.env.GROQ_API_KEY` reads replaced with `readEnv(...)` (check the constructor and any fallback-to-Groq logic).
+- Confirm the singleton reset logic is actually in place (not just the getter) — worth double-checking `getFeatherlessService()` doesn't still return a stale cached instance on hot-reload.
+- Trigger the report/threat-intel pipeline again and check logs for absence of `401`/`invalid_request_error`.
+
+Want me to also draft the exact singleton-reset code pattern (e.g., a `resetFeatherlessService()` function) in case that part wasn't fully done before the quota cut off?

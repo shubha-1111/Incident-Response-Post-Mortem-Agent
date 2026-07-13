@@ -1,8 +1,14 @@
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import Handlebars from 'handlebars';
 
-const TEMPLATE_DIR = path.join(process.cwd(), 'config', 'report-templates');
+// Resolve relative to this compiled file's own location (dist/services/report-templates.js)
+// rather than process.cwd(), so it works no matter what directory the process is launched from.
+// dist/services/../../config/report-templates -> <app-root>/config/report-templates
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const TEMPLATE_DIR = path.join(__dirname, '..', '..', 'config', 'report-templates');
 
 const registerHelpers = () => {
   Handlebars.registerHelper('formatDate', (timestamp: string | number | Date) => {
@@ -43,7 +49,11 @@ const registerHelpers = () => {
     if (['medium', 'warn', 'warning'].includes(s)) return 'medium';
     return 'low';
   });
+
+  Handlebars.registerHelper('inc', (index: number) => index + 1);
 };
+
+registerHelpers();
 
 const loadTemplate = (name: string): Handlebars.TemplateDelegate => {
   const templatePath = path.join(TEMPLATE_DIR, `${name}.hbs`);
@@ -51,8 +61,28 @@ const loadTemplate = (name: string): Handlebars.TemplateDelegate => {
   return Handlebars.compile(source);
 };
 
-const executiveSummaryTemplate = loadTemplate('executive-summary');
-const technicalDeepDiveTemplate = loadTemplate('technical-deep-dive');
+// Lazy-load + cache each template on first actual use instead of at module
+// import time. A missing/broken .hbs file will now only fail the specific
+// report request (with a clear error) instead of crashing the whole process
+// on startup before the server can even bind its port.
+const templateCache = new Map<string, Handlebars.TemplateDelegate>();
+
+const getTemplate = (name: string): Handlebars.TemplateDelegate => {
+  let template = templateCache.get(name);
+  if (!template) {
+    try {
+      template = loadTemplate(name);
+    } catch (err) {
+      throw new Error(
+        `Failed to load report template "${name}" from ${TEMPLATE_DIR}: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+    templateCache.set(name, template);
+  }
+  return template;
+};
 
 export interface ExecutiveSummaryData {
   incidentId: string;
@@ -96,11 +126,11 @@ export interface TechnicalDeepDiveData {
 }
 
 export const renderExecutiveSummary = (data: ExecutiveSummaryData): string => {
-  return executiveSummaryTemplate(data);
+  return getTemplate('executive-summary')(data);
 };
 
 export const renderTechnicalDeepDive = (data: TechnicalDeepDiveData): string => {
-  return technicalDeepDiveTemplate(data);
+  return getTemplate('technical-deep-dive')(data);
 };
 
 export { Handlebars };

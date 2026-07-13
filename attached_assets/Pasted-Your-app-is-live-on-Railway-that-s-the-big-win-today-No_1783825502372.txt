@@ -1,0 +1,104 @@
+Your app is live on Railway — that's the big win today. 
+
+Now looking at the Decision Recommendation panel:
+
+---
+
+## What "Decision" Currently Shows
+
+**It's showing placeholder/mock logic, not your real agent output.** Here's how I can tell:
+
+- Confidence Score: **10%** — your anomaly agent should be scoring 0.82+ on credential stuffing
+- Reason: **"No matching rule – default to human review"** — this means the autonomy router isn't reading real state
+- Root cause: **"unknown"** in the telemetry log — RCA agent didn't complete
+
+---
+
+## What It SHOULD Show
+
+```
+Action:     rotate_credential
+Target:     db-prod-02
+Reason:     Asset tagged high_impact (prod DB) — 
+            auto-execute blocked by policy
+Confidence: 82% anomaly · 89% precedent match
+MITRE:      T1110.004 (Credential Stuffing)
+```
+
+---
+
+## The Real Problem
+
+Your backend agents aren't completing the full pipeline. The decision card is rendering but reading empty/default state because:
+
+1. RCA Agent returned `rootCause: unknown` — Featherless/LLM call likely failing silently
+2. Confidence stays at 10% — anomaly agent output not reaching state correctly
+3. Autonomy router defaulting to human review because it has no real verdict to route
+
+---
+
+## Fix — Send This to Replit
+
+```
+The decision panel shows wrong data. The pipeline 
+is not completing. Debug in this order:
+
+1. Add console.log to every agent's main function 
+   at start and end showing input and output:
+
+In runLogAgent(): 
+  console.log('[LOG AGENT] input events:', events.length);
+  console.log('[LOG AGENT] output:', {evidence: evidence.length, confidenceScore});
+
+In runAnomalyAgent():
+  console.log('[ANOMALY AGENT] output:', {evidence: evidence.length, confidenceScore});
+
+In runRcaAgent():
+  console.log('[RCA AGENT] retrievalConfidence:', retrievalConfidence);
+  console.log('[RCA AGENT] rootCause:', rootCause);
+  console.log('[RCA AGENT] isNovelPattern:', isNovelPattern);
+
+In runRemediationAgent():
+  console.log('[REMEDIATION] action:', action);
+  console.log('[REMEDIATION] enkryptVerdict:', enkryptVerdict);
+
+2. Trigger a demo incident and paste the full 
+   console output here so we can see exactly 
+   where the pipeline breaks.
+
+3. The most likely failure point is the RCA agent
+   Featherless AI call. Add this error catch:
+
+try {
+  const completion = await openai.chat.completions.create({...});
+  console.log('[RCA] LLM response:', completion.choices[0].message.content);
+} catch(err) {
+  console.error('[RCA] LLM CALL FAILED:', err.message);
+  // this is where it's probably dying silently
+}
+
+4. Check Featherless API key is in Railway env vars:
+   Go to Railway → your service → Variables tab
+   Confirm FEATHERLESS_API_KEY is set there
+   (local .env doesn't apply to Railway deployment)
+
+Show me the console logs after triggering an incident.
+```
+
+---
+
+## Also Check Railway Variables Right Now
+
+Go to `web-production-5f3e9.up.railway.app` → Railway dashboard → Variables and confirm these are all set:
+
+```
+FEATHERLESS_API_KEY    ← most likely missing
+COHERE_API_KEY         ← needed for embeddings
+QDRANT_URL             ← needed for KB lookup
+QDRANT_API_KEY
+JWT_SECRET
+OTEL_SERVICE_NAME=incident-response-agent
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+```
+
+Missing env vars on Railway is the #1 cause of silent failures in deployed apps. What does your Railway Variables tab show?

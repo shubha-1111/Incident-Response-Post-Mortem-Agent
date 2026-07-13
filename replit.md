@@ -1,29 +1,64 @@
-# 6-Tier Autonomous Threat Mitigation & Learning Loop Engine
+# 🛡️ Incident Response Postmortem Agent
 
-Imported Node.js/TypeScript incident-response agent system (Mastra + Qdrant + Enkrypt AI + Groq/Cohere). Backend is Express (`src/index.ts`, `src/api/server.ts`); frontend is a separate Vite/React app in `src/frontend`.
+## Project Overview
 
-## Required environment for the backend to boot
-- `QDRANT_URL`, `QDRANT_API_KEY` — hard requirement, `src/config/qdrant.ts` throws at import time if missing.
-- `GROQ_API_KEY` — LLM calls in the RCA/remediation agents (`llama-3.3-70b-versatile`).
-- `COHERE_API_KEY` — embeddings (`embed-english-v3.0`) for Qdrant vector search.
-- Optional: `ENKRYPT_SKILL_SENTINEL_URL`/`ENKRYPT_RAYDER_URL` (falls back to PASS if unset), `ABUSEIPDB_API_KEY`, `VIRUSTOTAL_API_KEY`, `CMDB_API_URL`/`CMDB_API_KEY`, `INCIDENT_SINK_URL`.
-- `JWT_SECRET` auto-generates a random one if unset (fine for a single dev session, but set a fixed 32+ char value in any multi-instance/production deploy so tokens survive restarts).
-- `PORT` defaults to 3001. `NODE_ENV=development` auto-triggers a demo incident workflow run on boot.
+A **6-Tier Autonomous Threat Mitigation & Learning Loop Engine** built with Mastra, Qdrant, and Enkrypt AI. Automatically scrubs logs, detects anomalies, performs root-cause analysis, plans containment, and generates SRE post-mortem reports — dropping MTTR from days to under 5 minutes.
 
-## What changed in this session (frontend enhancement pass)
-Wired previously-unused backend routes into the dashboard UI:
-- Fixed `ConfusionMatrixChart.tsx` (was calling a relative URL with no auth header — broken in both dev and prod).
-- New nav sections: **Incident Groups** (clustering + correlation network graph, `IncidentGroupsView.jsx`), **Model Analytics** (accuracy/precision-recall/confusion matrix, `AnalyticsPanel.jsx`), **Security Toolkit** (IOC lookup, CVE/CISA-KEV lookup, config analyzer, XOR decrypt, "explain term" AI helper, `SecurityToolkit.jsx`).
-- Added `ReportGenerator.jsx` (executive-summary/technical-deep-dive preview + PDF download) to the Reports tab.
-- Wired the previously-imported-but-unused `MultiSelectFilter` into `ActiveIncidents.jsx` for attack-type filtering.
-- Added static frontend serving + SPA fallback to `src/api/server.ts` so a single deployed service can serve both the API and the built frontend (the existing `Dockerfile` already copied `src/frontend/dist` into the image but nothing served it — this was a latent gap).
+### Stack
+- **Backend**: Node.js + Express + TypeScript (ESM, ts-node for dev)
+- **Frontend**: React 18 + Vite + Tailwind CSS 3 + Recharts
+- **AI Pipeline**: Mastra workflow engine — 6 agents in sequence
+- **Database**: SQLite (local incidents) + Qdrant (vector embeddings)
+- **Auth**: JWT (auto-generated secret if not set)
+- **Realtime**: WebSocket server for live log streaming
+- **Deployment**: Railway (Docker multi-stage build)
 
-## Deploying to Railway
-The app builds as one service (backend serves the built frontend from `src/frontend/dist`):
-1. `railway.json` and `Procfile` are set up to run `npm run build` then `npm run start`.
-2. In Railway, set the required env vars above (`QDRANT_URL`, `QDRANT_API_KEY`, `GROQ_API_KEY`, `COHERE_API_KEY`, `JWT_SECRET`, plus any optional integrations you use).
-3. Railway auto-detects `PORT`; the app already reads `process.env.PORT`.
-4. Healthcheck path is `/health` (public, no auth).
+### How to run (dev)
+```bash
+npm install --legacy-peer-deps   # install backend deps
+cd src/frontend && npm install    # install frontend deps
+cd src/frontend && npx vite build # build frontend static files
+npm run dev                       # start Express on $PORT (default 5000)
+```
 
-## User preferences
-- Prefers implementing/wiring existing backend functionality into the frontend quickly over building new backend features from scratch.
+The Express server serves the built frontend from `src/frontend/dist/`.
+
+### How to build for production (Railway)
+```bash
+npm run build          # compiles TypeScript + builds frontend
+npm run start          # runs dist/index.js
+```
+
+### Required environment variables (see `.env.example`)
+| Variable | Description |
+|---|---|
+| `GROQ_API_KEY` | LLM for RCA agent |
+| `COHERE_API_KEY` | Embeddings for Qdrant seeding |
+| `QDRANT_URL` | Qdrant cloud instance URL |
+| `QDRANT_API_KEY` | Qdrant API key |
+| `ENKRYPT_API_KEY` | Security guardrails |
+| `ABUSEIPDB_API_KEY` | Threat intelligence |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Dashboard login (defaults: admin/admin) |
+
+Without Qdrant/Groq/Cohere keys, the app runs in degraded mode — the dashboard and incident tracking still work, but the AI pipeline steps will fail.
+
+### Key files
+- `src/index.ts` — entry point, bootstrap, dev simulation
+- `src/api/server.ts` — all Express routes
+- `src/workflows/incident-workflow.ts` — Mastra 6-tier workflow
+- `src/frontend/main.jsx` — React SPA root + all state management
+- `src/frontend/components/` — all UI components
+- `src/frontend/vite.config.ts` — Vite config with dev proxy to backend
+
+### Port mapping
+- Dev: PORT env var (default 5000 on Replit, 3001 otherwise)
+- Railway healthcheck: `GET /health`
+- Frontend built to: `src/frontend/dist/`
+
+## User Preferences
+- Use React + Tailwind CSS for frontend
+- Use Recharts for all charts (replaces Chart.js)
+- Dark glassmorphism design system — keep the `glass-panel`, `card-panel`, `btn-approve-glow` CSS classes
+- Charts should have interactive hover tooltips
+- Incident cards should be expandable (click chevron for details)
+- KPI counters in the header should animate on value changes

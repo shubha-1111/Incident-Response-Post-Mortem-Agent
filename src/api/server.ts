@@ -43,19 +43,40 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// In-memory Rate Limiting: 100 req/15min per IP
+// In-memory Rate Limiting: 2000 req/15min per IP (unauthenticated only)
 const rateLimitMap = new Map<string, { startTime: number; count: number }>();
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
-const RATE_LIMIT_MAX_REQUESTS = 100;
+// 2000 requests per 15-minute window per client IP. Dashboard polling at 15s
+// intervals generates ~80 req/min which means ~1200 per 15 min — well within
+// this limit. Authenticated requests bypass rate limiting entirely.
+const RATE_LIMIT_MAX_REQUESTS = 2000;
+
+// Paths that are exempt from rate limiting. Healthcheck endpoints are polled
+// by the orchestrator every few seconds and must never consume quota.
+const RATE_LIMIT_EXEMPT = new Set(['/health', '/health/ready']);
+
 function rateLimiter(req: Request, res: Response, next: NextFunction) {
-  const ip =
-    (req.headers['x-forwarded-for'] as string) ||
+  // Skip exempt paths before doing any work.
+  if (RATE_LIMIT_EXEMPT.has(req.path)) return next();
+
+  // Authenticated requests (any Bearer token present) bypass rate limiting.
+  // Token validity is still enforced by requireAuth downstream.
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) return next();
+
+  // X-Forwarded-For is a comma-separated list: "client, proxy1, proxy2".
+  // Only the first entry is the real client IP; using the full string caused
+  // every request through the same proxy chain to share one bucket.
+  const forwarded = req.headers['x-forwarded-for'] as string | undefined;
+  const ip = (forwarded ? forwarded.split(',')[0].trim() : null) ||
     req.socket.remoteAddress ||
     'unknown-ip';
-  // Bypass rate limiting for localhost queries
+
+  // Bypass rate limiting for localhost / loopback.
   if (ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1' || ip === 'unknown-ip') {
     return next();
   }
+
   const now = Date.now();
   const bucket = rateLimitMap.get(ip);
   if (!bucket || now - bucket.startTime > RATE_LIMIT_WINDOW_MS) {
@@ -82,11 +103,65 @@ const PORT = process.env.PORT || 3001;
 
 /**
  * GET /health
- * Public health check with deep dependency status
+ * Liveness check — always returns 200 while the Node process is up and
+ * able to serve requests. Railway (and any other orchestrator) should point
+ * its deploy healthcheck here so a flaky downstream dependency (Qdrant,
+ * Cohere, etc.) never blocks a successful deployment.
+ *
+ * A background dependency snapshot is included in the response body for
+ * observability, and a console warning is emitted whenever any component is
+ * unhealthy so the issue is visible in logs without failing the deploy gate.
+ * Use GET /health/ready for a strict liveness+readiness check.
  */
 app.get('/health', async (req: Request, res: Response) => {
+  // Fire a non-blocking dependency check for logging / response body.
+  // We intentionally do NOT await this before deciding the HTTP status.
+  let report: any = getLastHealthReport();
+  if (!report) {
+    try {
+      report = await checkSystemHealth();
+    } catch (err: any) {
+      // Log but do not propagate — liveness must not depend on dep checks.
+      console.warn('[Health] Background dependency check threw:', err.message);
+      report = { timestamp: new Date().toISOString(), error: err.message };
+    }
+  }
+
+  // Warn in logs if any component is unhealthy so problems remain visible
+  // even though the HTTP response is always 200.
+  if (report && !('error' in report)) {
+    const unhealthy = ['sqlite', 'qdrant', 'otel', 'websocket', 'workflow'].filter(
+      (k) => (report as any)[k] !== 'healthy' && (report as any)[k] !== 'ready',
+    );
+    if (unhealthy.length > 0) {
+      console.warn(`[Health] Liveness OK, but degraded components: ${unhealthy.join(', ')}`);
+    }
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      status: 'ok',
+      timestamp: report?.timestamp ?? new Date().toISOString(),
+      version: '1.0.0',
+      note: 'Liveness check — process is up. See /health/ready for full dependency status.',
+      components: report ?? {},
+    },
+  });
+});
+
+/**
+ * GET /health/ready
+ * Readiness / deep-dependency check. Returns 200 only when ALL tracked
+ * components (SQLite, Qdrant, OTel, WebSocket, workflow) are healthy.
+ * Returns 503 if any dependency is down.
+ *
+ * Use this endpoint for monitoring dashboards and alerting rules —
+ * NOT as Railway's deploy healthcheck path (that should be /health).
+ */
+app.get('/health/ready', async (req: Request, res: Response) => {
   try {
-    const report = getLastHealthReport() ?? (await checkSystemHealth());
+    const report = await checkSystemHealth();
     const allHealthy = ['sqlite', 'qdrant', 'otel', 'websocket', 'workflow'].every(
       (k) => (report as any)[k] === 'healthy' || (report as any)[k] === 'ready',
     );
@@ -353,6 +428,28 @@ app.post(['/reject/:id', '/api/incidents/:id/reject'], requireAuth, async (req: 
     success: true,
     data: state,
   });
+});
+
+/**
+ * DELETE /api/incidents
+ * Clear all incidents, workflow steps, timeline events and risk history.
+ * Useful for resetting the queue between demo runs.
+ */
+app.delete('/api/incidents', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const db = await getDatabase();
+    const allBefore = await getAllIncidents();
+    const count = allBefore.length;
+    await db.run('DELETE FROM workflow_steps');
+    await db.run('DELETE FROM timeline_events');
+    await db.run('DELETE FROM risk_history');
+    await db.run('DELETE FROM incidents');
+    console.log(`[Incidents] Queue cleared by ${req.user?.username || 'operator'} — ${count} incident(s) removed`);
+    return res.status(200).json({ success: true, message: `Cleared ${count} incident(s) from queue` });
+  } catch (err: any) {
+    console.error('[Incidents] Clear failed:', err.message);
+    return res.status(500).json({ success: false, error: `Failed to clear incidents: ${err.message}` });
+  }
 });
 
 /**
@@ -862,6 +959,7 @@ app.get('/api/incidents/:id/report', requireAuth, async (req: AuthenticatedReque
   const { id } = req.params;
   const { type = 'executive-summary' } = req.query;
 
+  try {
   const state: any = await getIncidentState(id);
   if (!state) {
     return res.status(404).json({ success: false, error: 'Incident not found' });
@@ -918,6 +1016,9 @@ app.get('/api/incidents/:id/report', requireAuth, async (req: AuthenticatedReque
   }
 
   return res.status(400).json({ success: false, error: 'Invalid report type. Use "executive-summary" or "technical-deep-dive".' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: `Report generation failed: ${err.message}` });
+  }
 });
 
 /**
@@ -928,6 +1029,7 @@ app.post('/api/incidents/:id/report/pdf', requireAuth, async (req: Authenticated
   const { id } = req.params;
   const { type = 'executive-summary' } = req.body;
 
+  try {
   const state: any = await getIncidentState(id);
   if (!state) {
     return res.status(404).json({ success: false, error: 'Incident not found' });
@@ -938,7 +1040,7 @@ app.post('/api/incidents/:id/report/pdf', requireAuth, async (req: Authenticated
     return res.status(500).json({ success: false, error: result.error });
   }
 
-  const pdfBuffer = getPDF(`report-${id}-${type}`);
+  const pdfBuffer = getPDF(`${type}-${id}`);
   if (!pdfBuffer) {
     return res.status(500).json({ success: false, error: 'PDF not found' });
   }
@@ -946,6 +1048,9 @@ app.post('/api/incidents/:id/report/pdf', requireAuth, async (req: Authenticated
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${id}-${type}-report.pdf"`);
   return res.status(200).send(pdfBuffer);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: `PDF generation failed: ${err.message}` });
+  }
 });
 
 // ----------------------------------------------------
@@ -1052,7 +1157,7 @@ const frontendDist = path.join(__dirname, '../../src/frontend/dist');
 if (fs.existsSync(frontendDist)) {
   app.use(express.static(frontendDist));
   // SPA fallback: any GET that isn't an API route or a static asset falls through to index.html
-  app.get(/^\/(?!api\/|login$|dashboard$|ingest$|approve\/|reject\/|incident\/|health$).*/, (req: Request, res: Response) => {
+  app.get(/^\/(?!api\/|login$|dashboard$|ingest$|approve\/|reject\/|incident\/|health(\/.*)?).*/, (req: Request, res: Response) => {
     res.sendFile(path.join(frontendDist, 'index.html'));
   });
 } else {

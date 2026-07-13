@@ -83,7 +83,7 @@ class FeatherlessService {
   private async fallbackChatCompletion(
     request: ChatCompletionRequest
   ): Promise<ChatCompletionResponse> {
-    const groqKey = process.env.GROQ_API_KEY;
+    const groqKey = process.env.GROQ_API_KEY || '';
     if (!groqKey) {
       throw new Error('Both FEATHERLESS_API_KEY and GROQ_API_KEY are missing');
     }

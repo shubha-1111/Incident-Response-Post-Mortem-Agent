@@ -3,7 +3,8 @@ export default {
   content: [
     "./index.html",
     "./main.jsx",
-    "./**/*.{js,ts,jsx,tsx}",
+    "./components/**/*.{js,ts,jsx,tsx}",
+    "./utils/**/*.{js,ts,jsx,tsx}",
   ],
   darkMode: 'class',
   theme: {
@@ -43,11 +44,6 @@ export default {
       borderRadius: {
         card: '10px',
         pill: '6px',
-      },
-      spacing: {
-        '12': '12px',
-        '16': '16px',
-        '20': '20px',
       },
     },
   },

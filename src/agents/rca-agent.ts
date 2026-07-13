@@ -24,10 +24,19 @@ const cohere = new CohereClient({
   token: process.env.COHERE_API_KEY,
 });
 
-const openai = new OpenAI({
-  baseURL: 'https://api.featherless.ai/v1',
-  apiKey: process.env.FEATHERLESS_API_KEY,
-});
+// Lazy singleton — avoids the SDK throwing at module import time when
+// FEATHERLESS_API_KEY is not set. A placeholder satisfies the SDK's
+// validation; actual calls will fail gracefully at runtime if unconfigured.
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({
+      baseURL: 'https://api.featherless.ai/v1',
+      apiKey: process.env.FEATHERLESS_API_KEY || 'featherless-not-configured',
+    });
+  }
+  return _openai;
+}
 
 // Helper: Generate embedding using Cohere
 async function embedText(input: string): Promise<number[]> {
@@ -351,7 +360,7 @@ export async function runRcaAgent(
         iterationCount,
       });
 
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAI().chat.completions.create({
         model: 'meta-llama/Llama-3.3-70B-Instruct',
         messages: [
           { role: 'system', content: CRISPE_SYSTEM_PROMPT },

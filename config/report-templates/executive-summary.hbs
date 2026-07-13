@@ -35,7 +35,7 @@
             Incident ID: <strong>{{incidentId}}</strong>
             | Threat Score: <strong>{{formatScore threatScore}}/100</strong>
             | Status: <strong>{{status}}</strong>
-            <span class="severity-badge {{severityClass}}">{{severity}}</span>
+            <span class="severity-badge {{severityClass severity}}">{{severity}}</span>
         </div>
     </div>
 
@@ -70,7 +70,7 @@
         <div class="section-title">Recommended Actions</div>
         {{#each recommendations}}
         <div class="action-item">
-            <span class="action-number">{{@index+1}}.</span>
+            <span class="action-number">{{inc @index}}.</span>
             {{this}}
         </div>
         {{/each}}

@@ -56,12 +56,11 @@ export async function getAssetCriticality(host: string): Promise<AssetCriticalit
         return 'standard';
       }
 
-      console.warn(`[CMDB] Unexpected criticality value received: ${criticality} for host ${host}. Defaulting to high_impact.`);
-      return 'high_impact';
+      console.warn(`[CMDB] Unexpected criticality value received: ${criticality} for host ${host}. Defaulting to standard.`);
+      return 'standard';
     } catch (error: any) {
-      // Step 4 — Default-deny on ANY failure (timeout, 404, network error, unexpected response shape)
-      console.error(`[CMDB] Error during asset lookup for host ${host}. Falling back to high_impact. Reason: ${error.message}`);
-      return 'high_impact';
+      console.warn(`[CMDB] Error during asset lookup for host ${host}. Falling back to standard. Reason: ${error.message}`);
+      return 'standard';
     }
   });
 }

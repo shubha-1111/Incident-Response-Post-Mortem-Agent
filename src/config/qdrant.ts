@@ -1,17 +1,41 @@
 import { QdrantClient } from '@qdrant/js-client-rest';
 
-// Ensure environment variables are strictly enforced at runtime
-const QDRANT_URL = process.env.QDRANT_URL;
-const QDRANT_API_KEY = process.env.QDRANT_API_KEY;
+// Lazily construct the client on first actual use instead of at module import
+// time. Throwing during `import` happens before any try/catch in the app can
+// run (e.g. in index.ts's bootstrapDatabase), which crashes the entire
+// process on boot -- including the HTTP server -- before it can even answer a
+// healthcheck. Deferring the check means a missing/misconfigured credential
+// only breaks the Qdrant-dependent call site (which already has error
+// handling), not the whole app.
+let _client: QdrantClient | null = null;
 
-if (!QDRANT_URL || !QDRANT_API_KEY) {
-  throw new Error('CRITICAL: Missing QDRANT_URL or QDRANT_API_KEY in environment variables.');
+function getRealClient(): QdrantClient {
+  if (_client) return _client;
+
+  const QDRANT_URL = process.env.QDRANT_URL;
+  const QDRANT_API_KEY = process.env.QDRANT_API_KEY;
+
+  if (!QDRANT_URL || !QDRANT_API_KEY) {
+    throw new Error('CRITICAL: Missing QDRANT_URL or QDRANT_API_KEY in environment variables.');
+  }
+
+  _client = new QdrantClient({
+    url: QDRANT_URL,
+    apiKey: QDRANT_API_KEY,
+  });
+  return _client;
 }
 
-// Initialize the single client instance
-export const qdrantClient = new QdrantClient({
-  url: QDRANT_URL,
-  apiKey: QDRANT_API_KEY,
+// Proxy so all existing call sites (`qdrantClient.search(...)`,
+// `qdrantClient.upsert(...)`, etc.) keep working unchanged, while the
+// underlying client -- and its env var validation -- is created lazily on
+// first property access.
+export const qdrantClient: QdrantClient = new Proxy({} as QdrantClient, {
+  get(_target, prop, _receiver) {
+    const client = getRealClient() as any;
+    const value = client[prop];
+    return typeof value === 'function' ? value.bind(client) : value;
+  },
 });
 
 export const COLLECTIONS = {

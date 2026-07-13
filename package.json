@@ -9,6 +9,7 @@
     "clean": "rm -rf dist src/frontend/dist",
     "build:backend": "tsc",
     "build:frontend": "cd src/frontend && npm install && npx vite build",
+    "build:frontend:only": "cd src/frontend && npx vite build",
     "build": "npm run clean && npm run build:backend && npm run build:frontend",
     "start": "node dist/index.js",
     "test": "TS_NODE_TRANSPILE_ONLY=1 node --loader ts-node/esm src/tests/integration.test.ts",
@@ -64,6 +65,6 @@
     "mastra": "^0.10.15",
     "ts-jest": "^29.1.2",
     "ts-node": "^10.9.2",
-    "typescript": "^5.4.5"
+    "typescript": "^5.9.3"
   }
 }
