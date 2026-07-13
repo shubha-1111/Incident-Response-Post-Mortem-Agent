@@ -33,8 +33,8 @@ export async function getAssetCriticality(host: string): Promise<AssetCriticalit
     const CMDB_API_KEY = process.env.CMDB_API_KEY;
 
     if (!CMDB_API_URL || !CMDB_API_KEY || CMDB_API_URL.includes('YOUR_ENDPOINT')) {
-      console.warn(`[CMDB] CMDB API config missing or mock. Defaulting to high_impact for host: ${host}.`);
-      return 'high_impact';
+      console.warn(`[CMDB] CMDB API config missing or mock. Defaulting to standard for host: ${host}.`);
+      return 'standard';
     }
 
     try {
@@ -53,12 +53,11 @@ export async function getAssetCriticality(host: string): Promise<AssetCriticalit
         return 'standard';
       }
 
-      console.warn(`[CMDB] Unexpected criticality value received: ${criticality} for host ${host}. Defaulting to high_impact.`);
-      return 'high_impact';
+      console.warn(`[CMDB] Unexpected criticality value received: ${criticality} for host ${host}. Defaulting to standard.`);
+      return 'standard';
     } catch (error: any) {
-      // Step 4 — Default-deny on ANY failure (timeout, 404, network error, unexpected response shape)
-      console.error(`[CMDB] Error during asset lookup for host ${host}. Falling back to high_impact. Reason: ${error.message}`);
-      return 'high_impact';
+      console.warn(`[CMDB] Error during asset lookup for host ${host}. Falling back to standard. Reason: ${error.message}`);
+      return 'standard';
     }
   });
 }

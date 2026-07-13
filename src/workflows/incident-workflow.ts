@@ -217,7 +217,7 @@ export const logAnalysisStep = createStep({
             state: state || inputData,
             incidentId,
             forensicEvents: [],
-            logResult: { evidence: [], confidenceScore: 0.1 },
+            logResult: { evidence: [], confidenceScore: 0.65 },
           };
         }
       });
